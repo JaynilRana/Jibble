@@ -1,2 +1,1 @@
-# Jibble
-Daily Log project
+
