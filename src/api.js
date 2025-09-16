@@ -83,7 +83,7 @@ export const emailSignUp = async (name, email, password) => {
   
   // Send email verification with custom settings
   await sendEmailVerification(cred.user, {
-    url: `${window.location.origin}/verify-email`,
+    url: `${import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin}/verify-email`,
     handleCodeInApp: true
   });
   
@@ -111,7 +111,7 @@ export const emailSignIn = async (email, password) => {
   if (!cred.user.emailVerified) {
     // Send verification email if not verified
     await sendEmailVerification(cred.user, {
-      url: `${window.location.origin}/verify-email`,
+      url: `${import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin}/verify-email`,
       handleCodeInApp: true
     });
     return {
@@ -161,7 +161,7 @@ export const resendVerificationEmail = async () => {
   if (!user) throw new Error('No user logged in');
   
   await sendEmailVerification(user, {
-    url: `${window.location.origin}/verify-email`,
+    url: `${import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin}/verify-email`,
     handleCodeInApp: true
   });
   return { message: 'Verification email sent! Please check your inbox and spam folder.' };
