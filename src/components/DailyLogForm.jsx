@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useTheme } from '../contexts/ThemeContext'
 import { useAuth } from '../contexts/AuthContext'
 import { useQuote } from '../contexts/QuoteContext'
-import { createLog, getLogByDate, getCloudDraft, saveCloudDraft, clearCloudDraft } from '../api'
+import { createLog, getLogByDate, getCloudDraft, saveCloudDraft, clearCloudDraft, subscribeCloudDraft } from '../api'
 import QuoteSection from './QuoteSection'
 import TasksSection from './TasksSection'
 import RatingsSection from './RatingsSection'
@@ -97,12 +97,32 @@ const DailyLogForm = ({ currentDate }) => {
           if (chosen === localDraft && (!cloudDraft || ts(localDraft) > ts(cloudDraft))) {
             await saveCloudDraft(dateKey, localDraft)
           }
+
+          // Subscribe to cloud updates so the other device's edits appear live
+          if (user) {
+            if (loadExistingLog._unsub) { try { loadExistingLog._unsub() } catch (_) {} }
+            loadExistingLog._unsub = subscribeCloudDraft(dateKey, (remote) => {
+              if (!remote) return
+              const localTs = ts(draftService.getDraft(user.id, dateKey))
+              const remoteTs = ts(remote)
+              if (remoteTs >= localTs) {
+                setFormData(prev => ({
+                  ...prev,
+                  ...remote,
+                  tasks: remote.tasks || prev.tasks,
+                  ratings: remote.ratings || prev.ratings,
+                  diet: remote.diet || prev.diet,
+                  steps: remote.steps || prev.steps
+                }))
+              }
+            })
+          }
           return
         }
 
         // Otherwise fetch existing log from Firestore
         const response = await getLogByDate(dateKey)
-        if (response.success && response.data) {
+        if (response && response.data) {
           setFormData(prev => ({
             ...prev,
             ...response.data,
@@ -127,6 +147,7 @@ const DailyLogForm = ({ currentDate }) => {
     }
     
     loadExistingLog()
+    return () => { if (loadExistingLog._unsub) { try { loadExistingLog._unsub() } catch (_) {} } }
   }, [currentDate, user, dailyQuote])
 
   // Persist UI preferences
@@ -149,7 +170,7 @@ const DailyLogForm = ({ currentDate }) => {
     // Save locally for offline
     draftService.saveDraft(user.id, dateKey, withTs)
     // Save to cloud for cross-device
-    try { await saveCloudDraft(dateKey, withTs) } catch (_) {}
+    try { await saveCloudDraft(dateKey, withTs) } catch (e) { console.warn('Cloud draft save failed:', e?.message || e) }
   }
 
   const updateQuote = (newQuote) => {
@@ -347,7 +368,11 @@ const DailyLogForm = ({ currentDate }) => {
               min="1"
               max="10"
               value={formData.mood_score}
-              onChange={(e) => setFormData(prev => ({ ...prev, mood_score: parseInt(e.target.value) }))}
+              onChange={(e) => {
+                const v = parseInt(e.target.value)
+                setFormData(prev => ({ ...prev, mood_score: v }))
+                persistDraft({ mood_score: v })
+              }}
               className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
             />
             <div className="flex justify-between text-xs text-gray-500 mt-1">
@@ -369,7 +394,11 @@ const DailyLogForm = ({ currentDate }) => {
               min="1"
               max="10"
               value={formData.energy_level}
-              onChange={(e) => setFormData(prev => ({ ...prev, energy_level: parseInt(e.target.value) }))}
+              onChange={(e) => {
+                const v = parseInt(e.target.value)
+                setFormData(prev => ({ ...prev, energy_level: v }))
+                persistDraft({ energy_level: v })
+              }}
               className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
             />
             <div className="flex justify-between text-xs text-gray-500 mt-1">

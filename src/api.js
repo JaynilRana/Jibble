@@ -14,6 +14,7 @@ import {
   orderBy,
   limit as fbLimit
 } from 'firebase/firestore';
+import { onSnapshot } from 'firebase/firestore';
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -249,6 +250,22 @@ export const clearCloudDraft = async (date) => {
   const docRef = doc(userDraftsCollectionRef(userKey), date);
   await deleteDoc(docRef);
   return { success: true };
+};
+
+export const subscribeCloudDraft = (date, onChange) => {
+  const userKey = getCurrentUserKey();
+  const docRef = doc(userDraftsCollectionRef(userKey), date);
+  const unsub = onSnapshot(docRef, (snap) => {
+    if (snap.exists()) {
+      onChange({ id: snap.id, ...snap.data() });
+    } else {
+      onChange(null);
+    }
+  }, (_err) => {
+    // On error, surface null; caller can decide
+    onChange(null);
+  });
+  return unsub;
 };
 
 // Weekly Reports
