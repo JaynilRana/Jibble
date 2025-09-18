@@ -75,6 +75,7 @@ const getCurrentUserKey = () => {
 
 const userLogsCollectionRef = (userKey) => collection(db, 'users', userKey, 'daily_logs');
 const userReportsCollectionRef = (userKey) => collection(db, 'users', userKey, 'weekly_reports');
+const userDraftsCollectionRef = (userKey) => collection(db, 'users', userKey, 'drafts');
 
 // Auth - Firebase email/password with email verification
 export const emailSignUp = async (name, email, password) => {
@@ -225,6 +226,29 @@ export const getLogByDate = async (date) => {
   const docRef = doc(userLogsCollectionRef(userKey), date);
   const snap = await getDoc(docRef);
   return { data: snap.exists() ? { id: snap.id, ...snap.data() } : null };
+};
+
+// Cloud Drafts (Firestore) for cross-device unsaved changes
+export const getCloudDraft = async (date) => {
+  const userKey = getCurrentUserKey();
+  const docRef = doc(userDraftsCollectionRef(userKey), date);
+  const snap = await getDoc(docRef);
+  return { data: snap.exists() ? { id: snap.id, ...snap.data() } : null };
+};
+
+export const saveCloudDraft = async (date, draftData) => {
+  const userKey = getCurrentUserKey();
+  const docRef = doc(userDraftsCollectionRef(userKey), date);
+  const payload = { ...draftData, _updatedAt: new Date().toISOString() };
+  await setDoc(docRef, payload, { merge: true });
+  return { success: true };
+};
+
+export const clearCloudDraft = async (date) => {
+  const userKey = getCurrentUserKey();
+  const docRef = doc(userDraftsCollectionRef(userKey), date);
+  await deleteDoc(docRef);
+  return { success: true };
 };
 
 // Weekly Reports

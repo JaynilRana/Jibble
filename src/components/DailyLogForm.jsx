@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useTheme } from '../contexts/ThemeContext'
 import { useAuth } from '../contexts/AuthContext'
 import { useQuote } from '../contexts/QuoteContext'
-import { createLog, getLogByDate } from '../api'
+import { createLog, getLogByDate, getCloudDraft, saveCloudDraft, clearCloudDraft } from '../api'
 import QuoteSection from './QuoteSection'
 import TasksSection from './TasksSection'
 import RatingsSection from './RatingsSection'
@@ -66,18 +66,37 @@ const DailyLogForm = ({ currentDate }) => {
     const loadExistingLog = async () => {
       setIsLoading(true)
       try {
-        // First try a local draft
-        const draft = draftService.getDraft(user.id, dateKey)
-        if (draft) {
+        // 1) Try cloud draft first for cross-device
+        let chosen = null
+        const cloudResp = await getCloudDraft(dateKey)
+        const cloudDraft = cloudResp?.data || null
+
+        // 2) Check local draft
+        const localDraft = draftService.getDraft(user.id, dateKey)
+
+        // 3) Choose newest by _updatedAt
+        const ts = (obj) => new Date(obj?._updatedAt || 0).getTime()
+        if (cloudDraft && (!localDraft || ts(cloudDraft) >= ts(localDraft))) {
+          chosen = cloudDraft
+        } else if (localDraft) {
+          chosen = localDraft
+        }
+
+        if (chosen) {
           setFormData(prev => ({
             ...prev,
-            ...draft,
-            tasks: draft.tasks || prev.tasks,
-            ratings: draft.ratings || prev.ratings,
-            diet: draft.diet || prev.diet,
-            steps: draft.steps || prev.steps
+            ...chosen,
+            tasks: chosen.tasks || prev.tasks,
+            ratings: chosen.ratings || prev.ratings,
+            diet: chosen.diet || prev.diet,
+            steps: chosen.steps || prev.steps
           }))
-          console.log('📝 Loaded draft for:', dateKey)
+          console.log('📝 Loaded draft for:', dateKey, 'source:', chosen === cloudDraft ? 'cloud' : 'local')
+
+          // If local is newer than cloud, push it to cloud for sync
+          if (chosen === localDraft && (!cloudDraft || ts(localDraft) > ts(cloudDraft))) {
+            await saveCloudDraft(dateKey, localDraft)
+          }
           return
         }
 
@@ -121,11 +140,16 @@ const DailyLogForm = ({ currentDate }) => {
     } catch (_) {}
   }, [showDiet, showSteps, user])
 
-  const persistDraft = (partial) => {
+  const persistDraft = async (partial) => {
     const dateKey = getDateKey(currentDate)
     if (!dateKey || !user) return
     const next = { ...formData, ...partial }
-    draftService.saveDraft(user.id, dateKey, next)
+    // Update timestamps for conflict resolution
+    const withTs = { ...next, _updatedAt: new Date().toISOString() }
+    // Save locally for offline
+    draftService.saveDraft(user.id, dateKey, withTs)
+    // Save to cloud for cross-device
+    try { await saveCloudDraft(dateKey, withTs) } catch (_) {}
   }
 
   const updateQuote = (newQuote) => {
@@ -197,6 +221,7 @@ const DailyLogForm = ({ currentDate }) => {
       setTimeout(() => setSaveStatus('idle'), 2500)
       if (user) {
         draftService.clearDraft(user.id, dateKey)
+        try { await clearCloudDraft(dateKey) } catch (_) {}
       }
     } catch (error) {
       console.error('Error saving log:', error)
