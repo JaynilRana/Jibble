@@ -363,7 +363,7 @@ html {
   transform: translateY(16px) scale(0.98);
   transition: opacity 700ms ease, transform 700ms ease;
 }
-.reveal-in {
+[data-reveal].reveal-in {
   opacity: 1;
   transform: translateY(0) scale(1);
 }

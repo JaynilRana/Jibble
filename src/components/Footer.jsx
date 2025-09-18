@@ -20,6 +20,16 @@ const Footer = () => {
     }
   }
 
+  const navigateWithTop = (path) => {
+    if (location.pathname === path) {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    } else {
+      navigate(path)
+      // Allow route change to render then scroll
+      setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 0)
+    }
+  }
+
   return (
     <footer className={`py-12 ${
       isDark ? 'bg-gray-900' : 'bg-gray-800'
@@ -29,7 +39,7 @@ const Footer = () => {
           {/* Brand Section */}
           <div className="md:col-span-2">
             <button 
-              onClick={() => navigate('/')}
+              onClick={() => navigateWithTop('/')}
               className="flex items-center gap-3 mb-4 hover:opacity-80 transition-opacity duration-300"
             >
               <img 
@@ -85,7 +95,7 @@ const Footer = () => {
             <ul className="space-y-2">
               <li>
                 <button 
-                  onClick={() => navigate('/')}
+                  onClick={() => navigateWithTop('/')}
                   className={`text-sm font-source-sans hover:underline transition-colors duration-200 ${
                     isDark ? 'text-gray-300 hover:text-white' : 'text-gray-300 hover:text-white'
                   }`}
@@ -105,7 +115,7 @@ const Footer = () => {
               </li>
               <li>
                 <button 
-                  onClick={() => navigate('/dashboard')}
+                  onClick={() => navigateWithTop('/dashboard')}
                   className={`text-sm font-source-sans hover:underline transition-colors duration-200 ${
                     isDark ? 'text-gray-300 hover:text-white' : 'text-gray-300 hover:text-white'
                   }`}
@@ -115,7 +125,7 @@ const Footer = () => {
               </li>
               <li>
                 <button 
-                  onClick={() => navigate('/stats')}
+                  onClick={() => navigateWithTop('/stats')}
                   className={`text-sm font-source-sans hover:underline transition-colors duration-200 ${
                     isDark ? 'text-gray-300 hover:text-white' : 'text-gray-300 hover:text-white'
                   }`}
@@ -172,7 +182,7 @@ const Footer = () => {
           <p className={`text-sm font-source-sans ${
             isDark ? 'text-gray-400' : 'text-gray-400'
           }`}>
-            © 2024 Jibble. All rights reserved. Made with ❤️ for personal growth.
+            © 2025 Jibble. All rights reserved. Made with ❤️ for personal growth.
           </p>
         </div>
       </div>

@@ -13,7 +13,7 @@ const Home = () => {
   const [showMobileMenu, setShowMobileMenu] = useState(false)
   const navigate = useNavigate()
 
-  useRevealOnScroll()
+  useRevealOnScroll('[data-reveal]', [isDark])
 
   const features = [
     {

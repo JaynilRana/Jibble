@@ -1,9 +1,12 @@
 import { useEffect } from 'react'
 
-const useRevealOnScroll = (selector = '[data-reveal]') => {
+const useRevealOnScroll = (selector = '[data-reveal]', deps = []) => {
   useEffect(() => {
     const elements = Array.from(document.querySelectorAll(selector))
     if (elements.length === 0) return
+
+    // Immediate reveal to avoid any blank sections
+    elements.forEach((el) => el.classList.add('reveal-in'))
 
     const reveal = (el) => {
       el.classList.add('reveal-in')
@@ -32,7 +35,7 @@ const useRevealOnScroll = (selector = '[data-reveal]') => {
     }, 1200)
 
     return () => { window.clearTimeout(fallbackTimer); observer.disconnect() }
-  }, [selector])
+  }, [selector, ...deps])
 }
 
 export default useRevealOnScroll
