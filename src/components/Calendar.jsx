@@ -139,38 +139,41 @@ const Calendar = () => {
       const isSelected = selectedDate && getDateKey(selectedDate) === dateString
       
       days.push(
-        <div
+        <button
           key={day}
+          type="button"
           onClick={() => setSelectedDate(date)}
-          className={`h-20 border border-gray-200 p-2 cursor-pointer transition-all duration-200 hover:bg-gray-50 ${
-            isDark ? 'border-gray-600 hover:bg-gray-700' : 'border-gray-200 hover:bg-gray-50'
-          } ${isTodayDate ? 'ring-2 ring-blue-500' : ''} ${isSelected ? 'bg-blue-100 dark:bg-blue-900' : ''}`}
+          className={`h-16 sm:h-20 border p-1 sm:p-2 rounded-lg focus:outline-none focus-visible:ring-2 transition-all duration-200 ${
+            isDark 
+              ? 'border-gray-600 hover:bg-gray-700 focus-visible:ring-blue-500' 
+              : 'border-gray-200 hover:bg-gray-50 focus-visible:ring-blue-500'
+          } ${isTodayDate ? 'ring-2 ring-blue-500' : ''} ${isSelected ? (isDark ? 'bg-blue-900' : 'bg-blue-100') : ''}`}
         >
           <div className="flex justify-between items-start">
-            <span className={`text-sm font-source-sans ${
+            <span className={`text-xs sm:text-sm font-source-sans ${
               isDark ? 'text-gray-300' : 'text-gray-700'
             }`}>
               {day}
             </span>
             {entry && entry.hasLog && (
-              <div className="flex flex-col items-end">
-                <span className={`text-xs ${getRatingColor(entry.rating)}`}>
+              <div className="flex items-center gap-1">
+                <span className={`text-[10px] sm:text-xs ${getRatingColor(entry.rating)} truncate max-w-[40px] sm:max-w-none`}>
                   {'⭐'.repeat(Math.min(entry.rating, 5))}
                 </span>
-                <span className="text-xs text-green-500">✓</span>
+                <span className="text-[10px] sm:text-xs text-green-500">✓</span>
               </div>
             )}
           </div>
           {entry && entry.hasLog && entry.log && (
-            <div className="mt-1 space-y-0.5">
+            <div className="mt-0.5 sm:mt-1 space-y-0.5">
               {typeof entry.log.steps === 'number' && entry.log.steps > 0 && (
-                <div className={`text-[10px] leading-tight flex items-center justify-start gap-1 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                <div className={`text-[9px] sm:text-[10px] leading-tight flex items-center justify-start gap-1 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                   <span>👟</span>
                   <span className="truncate">{entry.log.steps >= 1000 ? `${Math.round(entry.log.steps/100)/10}k` : entry.log.steps}</span>
                 </div>
               )}
               {entry.log.diet && (entry.log.diet.protein || entry.log.diet.calories || entry.log.diet.water) && (
-                <div className={`text-[10px] leading-tight grid grid-cols-3 gap-1 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                <div className={`text-[9px] sm:text-[10px] leading-tight grid grid-cols-3 gap-1 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
                   <span className="truncate">🥩 {entry.log.diet.protein || 0}g</span>
                   <span className="truncate">🔥 {entry.log.diet.calories || 0}</span>
                   <span className="truncate">💧 {entry.log.diet.water || 0}L</span>
@@ -178,7 +181,7 @@ const Calendar = () => {
               )}
             </div>
           )}
-        </div>
+        </button>
       )
     }
     
@@ -265,7 +268,7 @@ const Calendar = () => {
             : 'bg-white border-gray-200'
         }`}>
           {/* Day Headers */}
-          <div className="grid grid-cols-7 gap-2 mb-4">
+          <div className="grid grid-cols-7 gap-2 mb-4 text-xs sm:text-base">
             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
               <div
                 key={day}
@@ -279,12 +282,12 @@ const Calendar = () => {
           </div>
 
           {/* Calendar Days */}
-          <div className="grid grid-cols-7 gap-2">
+          <div className="grid grid-cols-7 gap-2 sm:gap-2">
             {renderCalendar()}
           </div>
         </div>
 
-        {/* Selected Day Details */}
+        {/* Selected Day Details - collapsible on mobile */}
         {selectedDate && (
           <div className={`mt-6 p-6 rounded-xl border-2 transition-colors duration-300 ${
             isDark 

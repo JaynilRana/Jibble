@@ -310,8 +310,10 @@ const DailyLogForm = ({ currentDate }) => {
         </div>
         <label className="inline-flex items-center cursor-pointer">
           <input type="checkbox" className="sr-only peer" checked={showDiet} onChange={() => setShowDiet(v => !v)} />
-          <div className={`w-11 h-6 rounded-full transition-colors duration-200 ${isDark ? 'bg-gray-600' : 'bg-gray-300'} relative peer-checked:${isDark ? 'bg-green-600' : 'bg-green-500'}`}>
-            <span className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform duration-200 peer-checked:translate-x-5"></span>
+          <div className={`w-11 h-6 rounded-full transition-colors duration-200 relative overflow-hidden shadow-inner ${
+            isDark ? 'bg-gray-600 peer-checked:bg-green-600' : 'bg-gray-300 peer-checked:bg-green-500'
+          }`}>
+            <span className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform duration-200 translate-x-0 peer-checked:translate-x-5"></span>
           </div>
         </label>
       </div>
@@ -329,8 +331,10 @@ const DailyLogForm = ({ currentDate }) => {
         </div>
         <label className="inline-flex items-center cursor-pointer">
           <input type="checkbox" className="sr-only peer" checked={showSteps} onChange={() => setShowSteps(v => !v)} />
-          <div className={`w-11 h-6 rounded-full transition-colors duration-200 ${isDark ? 'bg-gray-600' : 'bg-gray-300'} relative peer-checked:${isDark ? 'bg-blue-600' : 'bg-blue-500'}`}>
-            <span className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform duration-200 peer-checked:translate-x-5"></span>
+          <div className={`w-11 h-6 rounded-full transition-colors duration-200 relative overflow-hidden shadow-inner ${
+            isDark ? 'bg-gray-600 peer-checked:bg-blue-600' : 'bg-gray-300 peer-checked:bg-blue-500'
+          }`}>
+            <span className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform duration-200 translate-x-0 peer-checked:translate-x-5"></span>
           </div>
         </label>
       </div>
