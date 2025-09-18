@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useLayoutEffect } from 'react'
 import { useTheme } from '../contexts/ThemeContext'
 
 const TasksSection = ({ tasks, onTasksChange }) => {
@@ -23,6 +23,21 @@ const TasksSection = ({ tasks, onTasksChange }) => {
     ))
   }
 
+  // Auto-size all task textareas whenever tasks change (and on mount)
+  useLayoutEffect(() => {
+    const resizeAll = () => {
+      const nodes = document.querySelectorAll('[data-task-textarea]')
+      nodes.forEach((el) => {
+        el.style.height = 'auto'
+        el.style.height = `${el.scrollHeight}px`
+        el.style.overflow = 'hidden'
+      })
+    }
+    // Resize after render
+    const timer = setTimeout(resizeAll, 0)
+    return () => clearTimeout(timer)
+  }, [tasks, isDark])
+
   return (
     <div className="section section-tasks">
       <h3 className={`text-xl font-semibold mb-3 flex items-center gap-2 ${
@@ -33,7 +48,7 @@ const TasksSection = ({ tasks, onTasksChange }) => {
       </h3>
       <div>
         {tasks.map(task => (
-          <div key={task.id} className={`flex items-center gap-3 mb-3 p-3 rounded-xl border transition-colors duration-300 ${
+          <div key={task.id} className={`flex flex-wrap items-start gap-3 mb-3 p-3 rounded-xl border transition-colors duration-300 ${
             isDark 
               ? 'bg-gray-700/60 border-gray-600' 
               : 'bg-white/60 border-blue-100'
@@ -46,19 +61,21 @@ const TasksSection = ({ tasks, onTasksChange }) => {
               checked={task.completed}
               onChange={(e) => updateTask(task.id, 'completed', e.target.checked)}
             />
-            <input 
-              type="text" 
-              className={`flex-1 px-3 py-2 border-2 rounded-lg transition-all duration-300 focus:outline-none focus:ring-2 ${
+            <textarea 
+              rows={1}
+              data-task-textarea
+              className={`order-2 flex-1 w-[calc(100%-3rem)] sm:w-auto min-w-0 px-3 py-2 border-2 rounded-lg transition-all duration-300 focus:outline-none focus:ring-2 resize-none overflow-hidden whitespace-pre-wrap break-words leading-normal ${
                 isDark 
                   ? 'border-gray-600 focus:border-cyan-500 focus:ring-cyan-900 bg-gray-700/80 text-gray-200 placeholder-gray-400' 
                   : 'border-blue-200 focus:border-cyan-400 focus:ring-cyan-100 bg-white/80 text-gray-800 placeholder-gray-500'
               }`}
               value={task.text}
               onChange={(e) => updateTask(task.id, 'text', e.target.value)}
+              onInput={(e) => { e.target.style.height = 'auto'; e.target.style.height = `${e.target.scrollHeight}px`; e.target.style.overflow = 'hidden'; }}
               placeholder="New task..."
             />
             <button 
-              className={`text-xl transition-colors duration-200 p-1 rounded-full ${
+              className={`order-3 ml-auto text-xl transition-colors duration-200 p-1 rounded-full self-start ${
                 isDark 
                   ? 'text-red-300 hover:text-red-400 hover:bg-red-900/20' 
                   : 'text-red-400 hover:text-red-600 hover:bg-red-50'

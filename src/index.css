@@ -367,3 +367,13 @@ html {
   opacity: 1;
   transform: translateY(0) scale(1);
 }
+
+/* Auto-resizing task textareas: hide inner scrollbar across browsers */
+textarea[data-task-textarea] {
+  overflow: hidden;
+  resize: none;
+  scrollbar-width: none; /* Firefox */
+}
+textarea[data-task-textarea]::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
+}
