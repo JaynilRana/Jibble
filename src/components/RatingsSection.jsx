@@ -66,7 +66,7 @@ const RatingsSection = ({ ratings, onRatingsChange }) => {
               
               {/* Slider Thumb */}
               <div 
-                className={`absolute top-1/2 w-5 h-5 rounded-full border-2 cursor-pointer transition-all duration-300 transform -translate-y-1/2 ${
+                className={`absolute top-1/2 w-5 h-5 rounded-full border-2 cursor-pointer transition-all duration-300 transform -translate-y-1/2 touch-none ${
                   isDark 
                     ? 'bg-cyan-400 border-cyan-300 shadow-lg' 
                     : 'bg-cyan-500 border-cyan-400 shadow-lg'
@@ -92,6 +92,30 @@ const RatingsSection = ({ ratings, onRatingsChange }) => {
                   
                   document.addEventListener('mousemove', handleMouseMove)
                   document.addEventListener('mouseup', handleMouseUp)
+                }}
+                onTouchStart={(e) => {
+                  e.preventDefault()
+                  const slider = e.currentTarget.parentElement
+                  const rect = slider.getBoundingClientRect()
+                  
+                  const handleTouchMove = (moveEvent) => {
+                    moveEvent.preventDefault()
+                    const touch = moveEvent.touches[0]
+                    const x = touch.clientX - rect.left
+                    const percentage = Math.max(0, Math.min(100, (x / rect.width) * 100))
+                    const rating = 1 + (percentage / 100) * 9
+                    const roundedRating = Math.round(rating)
+                    const clampedRating = Math.max(1, Math.min(10, roundedRating))
+                    setRating(category.key, clampedRating)
+                  }
+                  
+                  const handleTouchEnd = () => {
+                    document.removeEventListener('touchmove', handleTouchMove)
+                    document.removeEventListener('touchend', handleTouchEnd)
+                  }
+                  
+                  document.addEventListener('touchmove', handleTouchMove, { passive: false })
+                  document.addEventListener('touchend', handleTouchEnd)
                 }}
               ></div>
             </div>
