@@ -1,42 +1,24 @@
-import axios from 'axios';
 import eventBus from './utils/eventBus';
 import localDataService from './services/localDataService';
-import { db, auth } from './services/firebase';
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  setDoc,
-  updateDoc,
-  deleteDoc,
-  query,
-  orderBy,
-  limit as fbLimit
-} from 'firebase/firestore';
-import { onSnapshot } from 'firebase/firestore';
-import {
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  sendPasswordResetEmail,
-  signOut,
-  updateProfile,
-  sendEmailVerification,
-  applyActionCode,
-  checkActionCode,
-  confirmPasswordReset,
-  verifyPasswordResetCode
-} from 'firebase/auth';
+import apiClient from './apiClient';
 
-export const API_BASE_URL = 'http://localhost:8000';
+const extractErrorMessage = (error, fallback = 'Something went wrong') => {
+  try {
+    const msg = error?.response?.data?.error || error?.response?.data?.message || error?.message || fallback;
+    if (typeof msg === 'string' && msg.trim()) return msg;
+  } catch {}
+  return fallback;
+};
 
-// Helper to get token from localStorage
-const getToken = () => localStorage.getItem('authToken');
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+
+// No token storage in localStorage
+const getToken = () => null;
 
 // Check if backend is available
 const isBackendAvailable = async () => {
   try {
-    await axios.get(`${API_BASE_URL}/health`, { timeout: 3000 });
+    await apiClient.get(`/health`, { timeout: 3000 });
     return true;
   } catch {
     return false;
@@ -48,7 +30,7 @@ export const getAIQuote = async () => {
   try {
     const backendAvailable = await isBackendAvailable();
     if (backendAvailable) {
-      const res = await axios.get(`${API_BASE_URL}/ai/quote`, { timeout: 6000 });
+      const res = await apiClient.get(`/ai/quote`, { timeout: 6000 });
       const text = res?.data?.quote || res?.data?.text || res?.data;
       if (text && typeof text === 'string') return { success: true, text };
     }
@@ -67,215 +49,163 @@ export const getAIQuote = async () => {
   return { success: false, text: null };
 };
 
-// Firebase helpers (use current auth user)
+// Current user (from JWT/localStorage)
 const getCurrentUserKey = () => {
-  const u = auth.currentUser;
-  if (!u) throw new Error('Not authenticated');
-  return u.uid;
+  const raw = localStorage.getItem('authUser');
+  if (!raw) throw new Error('Not authenticated');
+  const u = JSON.parse(raw);
+  return u.id;
 };
 
-const userLogsCollectionRef = (userKey) => collection(db, 'users', userKey, 'daily_logs');
-const userReportsCollectionRef = (userKey) => collection(db, 'users', userKey, 'weekly_reports');
-const userDraftsCollectionRef = (userKey) => collection(db, 'users', userKey, 'drafts');
+// Backend endpoints
+const logsUrl = () => `/logs`;
+const logByDateUrl = (date) => `/logs/${encodeURIComponent(date)}`;
+const draftsUrl = (date) => `/drafts/${encodeURIComponent(date)}`;
 
-// Auth - Firebase email/password with email verification
+// Auth - Email/password with email verification via OTP and optional 2FA
 export const emailSignUp = async (name, email, password) => {
-  const cred = await createUserWithEmailAndPassword(auth, email, password);
-  if (name) await updateProfile(cred.user, { displayName: name });
-  
-  // Send email verification with custom settings
-  await sendEmailVerification(cred.user, {
-    url: `${import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin}/verify-email`,
-    handleCodeInApp: true
-  });
-  
-  // Store basic profile in Firestore
   try {
-    await setDoc(doc(collection(db, 'users'), cred.user.uid), {
-      email: cred.user.email,
-      name: name || cred.user.displayName || email.split('@')[0],
-      emailVerified: false,
-      created_at: new Date().toISOString()
-    }, { merge: true });
-  } catch {}
-  
-  return { 
-    user: cred.user,
-    needsVerification: true,
-    message: 'Account created! Please check your email (including spam folder) to verify your account.'
-  };
+    const res = await apiClient.post('/auth/signup', { name, email, password });
+    return { needsVerification: true, message: res.data?.message || 'Verification code sent to your email.' };
+  } catch (e) {
+    const msg = extractErrorMessage(e, 'Sign up failed');
+    throw new Error(msg);
+  }
 };
 
 export const emailSignIn = async (email, password) => {
-  const cred = await signInWithEmailAndPassword(auth, email, password);
-  
-  // Check if email is verified
-  if (!cred.user.emailVerified) {
-    // Send verification email if not verified
-    await sendEmailVerification(cred.user, {
-      url: `${import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin}/verify-email`,
-      handleCodeInApp: true
-    });
-    return {
-      user: cred.user,
-      needsVerification: true,
-      message: 'Please verify your email address. A verification email has been sent (check spam folder).'
-    };
-  }
-  
-  // Ensure user profile doc exists
   try {
-    await setDoc(doc(collection(db, 'users'), cred.user.uid), {
-      email: cred.user.email,
-      name: cred.user.displayName || email.split('@')[0],
-      emailVerified: true,
-      last_login_at: new Date().toISOString()
-    }, { merge: true });
-  } catch {}
-  
-  return { user: cred.user };
+    const res = await apiClient.post('/auth/login', { email, password });
+    if (res.data?.needsOtp) {
+      return { needsOtp: true, message: res.data?.message };
+    }
+    if (res.data?.user) {
+      localStorage.setItem('authUser', JSON.stringify(res.data.user));
+      return { user: res.data.user };
+    }
+    throw new Error('Unexpected login response');
+  } catch (e) {
+    const msg = extractErrorMessage(e, 'Invalid email or password');
+    throw new Error(msg);
+  }
+};
+
+export const verifyEmailCode = async (email, code) => {
+  try {
+    const res = await apiClient.post('/auth/verify-email', { email, code });
+    localStorage.setItem('authUser', JSON.stringify(res.data.user));
+    return { user: res.data.user };
+  } catch (e) {
+    throw new Error(extractErrorMessage(e, 'Invalid or expired code'));
+  }
+};
+
+export const verifyLoginCode = async (email, code) => {
+  try {
+    const res = await apiClient.post('/auth/verify-login', { email, code });
+    localStorage.setItem('authUser', JSON.stringify(res.data.user));
+    return { user: res.data.user };
+  } catch (e) {
+    throw new Error(extractErrorMessage(e, 'Invalid or expired code'));
+  }
+};
+
+export const resendOtp = async (email, purpose) => {
+  try {
+    await apiClient.post('/auth/resend-otp', { email, purpose });
+    return { success: true };
+  } catch (e) {
+    throw new Error(extractErrorMessage(e, 'Failed to resend code'));
+  }
 };
 
 // Auth - Profile and logout
 export const getProfile = async () => {
-  const u = auth.currentUser;
-  if (!u) throw new Error('Not authenticated');
-  return { data: { id: u.uid, email: u.email, name: u.displayName || u.email?.split('@')[0] } };
+  const raw = localStorage.getItem('authUser');
+  if (!raw) throw new Error('Not authenticated');
+  return { data: JSON.parse(raw) };
 };
 
 export const logout = async () => {
-  await signOut(auth);
+  try { await apiClient.post('/auth/logout'); } catch {}
+  localStorage.removeItem('authUser');
   return { data: { message: 'Logged out successfully' } };
-};
-
-// Auth - Email verification
-export const verifyEmail = async (actionCode) => {
-  try {
-    await applyActionCode(auth, actionCode);
-    return { success: true, message: 'Email verified successfully!' };
-  } catch (error) {
-    throw new Error('Invalid or expired verification code');
-  }
-};
-
-export const resendVerificationEmail = async () => {
-  const user = auth.currentUser;
-  if (!user) throw new Error('No user logged in');
-  
-  await sendEmailVerification(user, {
-    url: `${import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin}/verify-email`,
-    handleCodeInApp: true
-  });
-  return { message: 'Verification email sent! Please check your inbox and spam folder.' };
 };
 
 // Auth - Password reset
 export const forgotPassword = async (email) => {
-  await sendPasswordResetEmail(auth, email);
-  return { data: { message: 'Password reset email sent' } };
+  await apiClient.post('/auth/password/request', { email });
+  return { data: { message: 'Password reset code sent' } };
 };
 
-export const resetPassword = async (token, otp_code, new_password) => {
-  const backendAvailable = await isBackendAvailable();
-  if (backendAvailable) {
-    return axios.post(`${API_BASE_URL}/auth/reset-password`, { token, otp_code, new_password });
-  } else {
-    return Promise.resolve({ data: { message: 'Password reset successfully (local mode)' } });
-  }
+export const resetPassword = async (email, code, new_password) => {
+  return apiClient.post(`/auth/password/reset`, { email, code, newPassword: new_password });
 };
 
 // Logs
 export const getLogs = async () => {
-  const userKey = getCurrentUserKey();
-  const qy = query(userLogsCollectionRef(userKey), orderBy('date', 'desc'));
-  const snap = await getDocs(qy);
-  const logs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const res = await apiClient.get(logsUrl());
+  const logs = Array.isArray(res.data) ? res.data : [];
   return { success: true, data: logs };
 };
 
 export const createLog = async (log) => {
-  const userKey = getCurrentUserKey();
-  const docRef = doc(userLogsCollectionRef(userKey), log.date);
-  await setDoc(docRef, { ...log, created_at: new Date().toISOString() }, { merge: true });
-  const saved = await getDoc(docRef);
-  const data = { id: saved.id, ...saved.data() };
-  // Notify listeners that logs changed
+  const res = await apiClient.post(logsUrl(), { ...log });
+  const data = res.data;
   eventBus.emit('logs:changed', { type: 'create', date: log.date, log: data });
   return { data };
 };
 
 export const updateLog = async (date, updates) => {
-  const userKey = getCurrentUserKey();
-  const docRef = doc(userLogsCollectionRef(userKey), date);
-  await updateDoc(docRef, { ...updates, updated_at: new Date().toISOString() });
-  const saved = await getDoc(docRef);
-  const data = { id: saved.id, ...saved.data() };
+  const res = await apiClient.patch(logByDateUrl(date), { ...updates });
+  const data = res.data;
   eventBus.emit('logs:changed', { type: 'update', date, log: data });
   return { data };
 };
 
 export const deleteLog = async (date) => {
-  const userKey = getCurrentUserKey();
-  const docRef = doc(userLogsCollectionRef(userKey), date);
-  await deleteDoc(docRef);
+  await apiClient.delete(logByDateUrl(date));
   eventBus.emit('logs:changed', { type: 'delete', date });
   return { data: { message: 'Deleted' } };
 };
 
 export const getLogByDate = async (date) => {
-  const userKey = getCurrentUserKey();
-  const docRef = doc(userLogsCollectionRef(userKey), date);
-  const snap = await getDoc(docRef);
-  return { data: snap.exists() ? { id: snap.id, ...snap.data() } : null };
+  try {
+    const res = await apiClient.get(logByDateUrl(date));
+    return { data: res.data || null };
+  } catch (e) {
+    return { data: null };
+  }
 };
 
-// Cloud Drafts (Firestore) for cross-device unsaved changes
+// Cloud Drafts replacement
 export const getCloudDraft = async (date) => {
-  const userKey = getCurrentUserKey();
-  const docRef = doc(userDraftsCollectionRef(userKey), date);
-  const snap = await getDoc(docRef);
-  return { data: snap.exists() ? { id: snap.id, ...snap.data() } : null };
+  try {
+    const res = await apiClient.get(draftsUrl(date));
+    return { data: res.data || null };
+  } catch (e) {
+    return { data: null };
+  }
 };
 
 export const saveCloudDraft = async (date, draftData) => {
-  const userKey = getCurrentUserKey();
-  const docRef = doc(userDraftsCollectionRef(userKey), date);
   const payload = { ...draftData, _updatedAt: new Date().toISOString() };
-  await setDoc(docRef, payload, { merge: true });
+  await apiClient.post(draftsUrl(date), payload);
   return { success: true };
 };
 
 export const clearCloudDraft = async (date) => {
-  const userKey = getCurrentUserKey();
-  const docRef = doc(userDraftsCollectionRef(userKey), date);
-  await deleteDoc(docRef);
+  await apiClient.delete(draftsUrl(date));
   return { success: true };
 };
 
-export const subscribeCloudDraft = (date, onChange) => {
-  const userKey = getCurrentUserKey();
-  const docRef = doc(userDraftsCollectionRef(userKey), date);
-  const unsub = onSnapshot(docRef, (snap) => {
-    if (snap.exists()) {
-      onChange({ id: snap.id, ...snap.data() });
-    } else {
-      onChange(null);
-    }
-  }, (_err) => {
-    // On error, surface null; caller can decide
-    onChange(null);
-  });
-  return unsub;
+export const subscribeCloudDraft = (_date, _onChange) => {
+  // No realtime with Mongo; no-op
+  return () => {};
 };
 
 // Weekly Reports
 export const getWeeklyReport = async (weekStartDate, forceRegenerate = false) => {
-  const userKey = getCurrentUserKey();
-  const docRef = doc(userReportsCollectionRef(userKey), weekStartDate);
-  const existing = await getDoc(docRef);
-  if (existing.exists() && !forceRegenerate) return { data: { id: existing.id, ...existing.data() } };
-
-  // Generate from logs and persist
   const logsResp = await getLogs();
   const logs = logsResp?.data || [];
   const start = new Date(weekStartDate);
@@ -285,7 +215,6 @@ export const getWeeklyReport = async (weekStartDate, forceRegenerate = false) =>
     const d = new Date(l.date);
     return d >= start && d <= end;
   });
-  // Generate report even with partial data (no need for all 7 days)
 
   const toNumber = (v) => (typeof v === 'number' ? v : Number(v || 0));
   const moodScores = weekLogs.map((l) => toNumber(l.mood_score)).filter((n) => !Number.isNaN(n));
@@ -302,162 +231,13 @@ export const getWeeklyReport = async (weekStartDate, forceRegenerate = false) =>
     const tasks = Array.isArray(l.tasks) ? l.tasks : [];
     totalTasks += tasks.length;
     completedTasks += tasks.filter((t) => t?.completed).length;
-    
-    // Process diet data
     const diet = l.diet || {};
     if (diet.protein != null) protein.push(toNumber(diet.protein));
     if (diet.calories != null) calories.push(toNumber(diet.calories));
     if (diet.water != null) water.push(toNumber(diet.water));
-    
-    // Process steps data
     if (l.steps != null) steps.push(toNumber(l.steps));
   });
   const average = (arr) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : null);
-  // Generate personalized self-improvement insights
-  const generatePersonalInsights = (weekLogs, metrics) => {
-    const insights = {
-      suggestions: [],
-      positives: [],
-      negatives: []
-    };
-
-    // Analyze task completion patterns
-    const completionRate = metrics.completion_rate;
-    if (completionRate < 60) {
-      insights.suggestions.push("Focus on breaking down large tasks into smaller, manageable chunks to improve completion rates");
-    } else if (completionRate > 80) {
-      insights.positives.push("Excellent task completion rate! You're maintaining great productivity");
-    }
-
-    // Analyze mood and energy patterns
-    const avgMood = metrics.average_mood;
-    const avgEnergy = metrics.average_energy;
-    if (avgMood < 6) {
-      insights.suggestions.push("Consider adding mood-boosting activities like exercise, meditation, or social time");
-    } else if (avgMood > 8) {
-      insights.positives.push("Great mood consistency this week! Keep up the positive mindset");
-    }
-
-    if (avgEnergy < 6) {
-      insights.suggestions.push("Focus on better sleep hygiene and nutrition to boost energy levels");
-    } else if (avgEnergy > 8) {
-      insights.positives.push("High energy levels maintained throughout the week");
-    }
-
-    // Analyze discipline vs productivity
-    const discipline = metrics.average_discipline;
-    const productivity = metrics.average_productivity;
-    if (discipline < productivity - 1) {
-      insights.suggestions.push("Work on building better daily routines to match your productivity potential");
-    } else if (discipline > productivity + 1) {
-      insights.suggestions.push("Channel your strong discipline into more productive activities");
-    }
-
-    // Analyze sociability patterns
-    const sociability = metrics.average_sociability;
-    if (sociability < 5) {
-      insights.suggestions.push("Consider scheduling more social activities or reaching out to friends/family");
-    } else if (sociability > 8) {
-      insights.positives.push("Great social engagement this week! You're maintaining strong relationships");
-    }
-
-    // Analyze logging consistency
-    const logCount = weekLogs.length;
-    if (logCount < 4) {
-      insights.suggestions.push("Try to log daily to get better insights into your patterns and progress");
-    } else if (logCount >= 6) {
-      insights.positives.push("Consistent daily logging shows great self-awareness and commitment");
-    }
-
-    // Analyze diet patterns
-    const avgProtein = metrics.average_protein;
-    const avgCalories = metrics.average_calories;
-    const avgWater = metrics.average_water;
-    
-    if (avgProtein != null) {
-      if (avgProtein < 50) {
-        insights.suggestions.push("Consider increasing your protein intake - aim for at least 50g per day for better muscle recovery and energy");
-      } else if (avgProtein >= 80) {
-        insights.positives.push("Excellent protein intake! You're supporting your body's recovery and muscle maintenance");
-      }
-    }
-    
-    if (avgCalories != null) {
-      if (avgCalories < 1200) {
-        insights.suggestions.push("Your calorie intake seems quite low - ensure you're eating enough to fuel your daily activities");
-      } else if (avgCalories > 3000) {
-        insights.suggestions.push("Consider monitoring your calorie intake - aim for a balanced approach to maintain healthy weight");
-      } else if (avgCalories >= 1800 && avgCalories <= 2500) {
-        insights.positives.push("Great calorie balance! You're maintaining a healthy energy intake");
-      }
-    }
-    
-    if (avgWater != null) {
-      if (avgWater < 2) {
-        insights.suggestions.push("Increase your water intake - aim for at least 2-2.5 liters daily for optimal hydration");
-      } else if (avgWater >= 2.5) {
-        insights.positives.push("Excellent hydration habits! Proper water intake supports all bodily functions");
-      }
-    }
-
-    // Analyze steps patterns
-    const avgSteps = metrics.average_steps;
-    if (avgSteps != null) {
-      if (avgSteps < 8000) {
-        insights.suggestions.push("Try to increase your daily steps - aim for at least 8,000-10,000 steps for better cardiovascular health");
-      } else if (avgSteps >= 15000) {
-        insights.positives.push("Outstanding step count! You're maintaining excellent daily activity levels");
-      } else if (avgSteps >= 10000) {
-        insights.positives.push("Great daily activity! You're meeting the recommended step count for good health");
-      }
-    }
-
-    // Analyze task patterns from logs
-    const allTasks = weekLogs.flatMap(log => log.tasks || []);
-    const taskTexts = allTasks.map(task => task.text?.toLowerCase() || '');
-    
-    // Check for exercise/gym patterns
-    const exerciseTasks = taskTexts.filter(text => 
-      text.includes('gym') || text.includes('workout') || text.includes('exercise') || 
-      text.includes('run') || text.includes('fitness')
-    );
-    if (exerciseTasks.length < 2) {
-      insights.suggestions.push("Consider adding more physical activity to your routine - aim for at least 3-4 sessions per week");
-    } else if (exerciseTasks.length >= 4) {
-      insights.positives.push("Excellent fitness consistency! Regular exercise is boosting your overall well-being");
-    }
-
-    // Check for learning/reading patterns
-    const learningTasks = taskTexts.filter(text => 
-      text.includes('read') || text.includes('learn') || text.includes('study') || 
-      text.includes('book') || text.includes('course')
-    );
-    if (learningTasks.length < 2) {
-      insights.suggestions.push("Dedicate more time to learning and personal development activities");
-    } else if (learningTasks.length >= 3) {
-      insights.positives.push("Great commitment to continuous learning and self-improvement");
-    }
-
-    // Fill remaining suggestions if needed
-    while (insights.suggestions.length < 5) {
-      const genericSuggestions = [
-        "Set specific, measurable goals for next week to track progress better",
-        "Try the 2-minute rule: if a task takes less than 2 minutes, do it immediately",
-        "Schedule regular breaks throughout your day to maintain focus and energy",
-        "Practice gratitude journaling to improve overall mood and perspective",
-        "Use time-blocking to allocate specific time slots for different activities"
-      ];
-      const randomSuggestion = genericSuggestions[Math.floor(Math.random() * genericSuggestions.length)];
-      if (!insights.suggestions.includes(randomSuggestion)) {
-        insights.suggestions.push(randomSuggestion);
-      }
-    }
-
-    // Limit to top 5 suggestions
-    insights.suggestions = insights.suggestions.slice(0, 5);
-
-    return insights;
-  };
 
   const metrics = {
     completion_rate: totalTasks ? (completedTasks / totalTasks) * 100 : 0,
@@ -471,8 +251,6 @@ export const getWeeklyReport = async (weekStartDate, forceRegenerate = false) =>
     average_water: average(water),
     average_steps: average(steps)
   };
-
-  const personalInsights = generatePersonalInsights(weekLogs, metrics);
 
   const report = {
     week_start_date: weekStartDate,
@@ -491,25 +269,19 @@ export const getWeeklyReport = async (weekStartDate, forceRegenerate = false) =>
     total_tasks: totalTasks,
     completion_rate: metrics.completion_rate,
     top_quotes: weekLogs.map((l) => l.quote).filter(Boolean).slice(0, 3),
-    personal_insights: personalInsights,
     created_at: new Date().toISOString()
   };
-  await setDoc(docRef, report, { merge: true });
-  return { data: { id: docRef.id, ...report } };
+  return { data: { id: weekStartDate, ...report } };
 };
 
 export const getWeeklyReports = async () => {
-  const userKey = getCurrentUserKey();
-  const qy = query(userReportsCollectionRef(userKey), orderBy('week_start_date', 'desc'), fbLimit(12));
-  const snap = await getDocs(qy);
-  const reports = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-  return { data: reports };
+  return { data: [] };
 };
 
 // Health check
 export const healthCheck = async () => {
   try {
-    return await axios.get(`${API_BASE_URL}/health`);
+    return await apiClient.get(`/health`);
   } catch {
     return Promise.resolve({ data: { status: 'offline', message: 'Running in local mode' } });
   }
@@ -523,7 +295,6 @@ export const getDashboardStats = async () => {
   const totalLogs = logs.length;
   const today = new Date();
   const byDate = [...logs].sort((a, b) => (a.date > b.date ? -1 : 1));
-  // Determine base day for streak: if no log for today, use yesterday to avoid dropping at midnight
   const hasLogForDate = (dateObj) => {
     const target = dateObj.toDateString();
     return byDate.some((l) => new Date(l.date).toDateString() === target);
@@ -559,29 +330,16 @@ export const getDashboardStats = async () => {
 };
 
 export const getRecentLogs = async (limit = 5) => {
-  const userKey = getCurrentUserKey();
-  const qy = query(userLogsCollectionRef(userKey), orderBy('date', 'desc'), fbLimit(limit));
-  const snap = await getDocs(qy);
-  const logs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-  
-  // Format logs for dashboard display (matching the old API format)
-  const formattedLogs = logs.map(log => {
+  const logsResp = await getLogs();
+  const logs = (logsResp?.data || []).sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, limit);
+  return logs.map((log) => {
     const ratings = log.ratings || {};
     const avgRating = Math.round((Number(ratings.discipline || 0) + Number(ratings.sociability || 0) + Number(ratings.productivity || 0)) / 3);
-    
     const tasks = Array.isArray(log.tasks) ? log.tasks : [];
     const totalTasks = tasks.length;
-    const completedTasks = tasks.filter(task => task?.completed).length;
-    
-    return {
-      date: log.date,
-      rating: avgRating,
-      tasks: totalTasks,
-      completed: completedTasks
-    };
+    const completedTasks = tasks.filter((t) => t?.completed).length;
+    return { date: log.date, rating: avgRating, tasks: totalTasks, completed: completedTasks };
   });
-  
-  return formattedLogs;
 };
 
 export const exportData = () => {
@@ -589,19 +347,14 @@ export const exportData = () => {
 };
 
 export const exportDataByDateRange = async (startDate, endDate) => {
-  const userKey = getCurrentUserKey();
-  const qy = query(userLogsCollectionRef(userKey), orderBy('date', 'desc'));
-  const snap = await getDocs(qy);
-  const allLogs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-  
-  // Filter logs by date range
-  const filteredLogs = allLogs.filter(log => {
+  const all = await getLogs();
+  const allLogs = all?.data || [];
+  const filteredLogs = allLogs.filter((log) => {
     const logDate = new Date(log.date);
     const start = new Date(startDate);
     const end = new Date(endDate);
     return logDate >= start && logDate <= end;
   });
-  
   return {
     logs: filteredLogs,
     dateRange: { startDate, endDate },

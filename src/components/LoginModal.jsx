@@ -2,11 +2,10 @@ import React, { useState, useEffect } from 'react'
 import { useTheme } from '../contexts/ThemeContext'
 import { useAuth } from '../contexts/AuthContext'
 import LoadingSpinner from './LoadingSpinner'
-import OTPVerification from './OTPVerification'
-import { emailSignUp, emailSignIn, forgotPassword, resendVerificationEmail } from '../api'
+import OTPInput from './OTPInput'
+import { emailSignUp, emailSignIn, forgotPassword, verifyEmailCode, verifyLoginCode, resendOtp } from '../api'
 import { useNavigate } from 'react-router-dom'
-import { db } from '../services/firebase'
-import { doc, setDoc, collection } from 'firebase/firestore'
+ 
 
 const LoginModal = ({ isOpen, onClose }) => {
   const { isDark } = useTheme()
@@ -15,8 +14,9 @@ const LoginModal = ({ isOpen, onClose }) => {
   const [currentStep, setCurrentStep] = useState('auth') // 'auth', 'forgot', 'otp'
   const [isSignup, setIsSignup] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [countdown, setCountdown] = useState(0)
-  const [pendingUser, setPendingUser] = useState(null)
+  const [countdown, setCountdown] = useState(60)
+  const [otpCode, setOtpCode] = useState('')
+  const [otpError, setOtpError] = useState(false)
   
   const [formData, setFormData] = useState({
     name: '',
@@ -28,7 +28,12 @@ const LoginModal = ({ isOpen, onClose }) => {
   const [errors, setErrors] = useState({})
   const [message, setMessage] = useState('')
 
-  // No OTP countdown needed anymore
+  useEffect(() => {
+    if (currentStep === 'otp' && countdown > 0) {
+      const t = setTimeout(() => setCountdown((c) => c - 1), 1000)
+      return () => clearTimeout(t)
+    }
+  }, [currentStep, countdown])
 
   if (!isOpen) return null
 
@@ -95,12 +100,15 @@ const LoginModal = ({ isOpen, onClose }) => {
         result = await emailSignIn(formData.email, formData.password)
       }
 
-      // Check if email verification is needed
-      if (result.needsVerification) {
-        setPendingUser(result.user)
+      if (isSignup && result.needsVerification) {
         setMessage(result.message)
         setCurrentStep('otp')
-      } else {
+        setCountdown(60)
+      } else if (result.needsOtp) {
+        setMessage(result.message || 'Enter the code sent to your email')
+        setCurrentStep('otp')
+        setCountdown(60)
+      } else if (result.user) {
         handleSuccessfulAuth()
       }
     } catch (error) {
@@ -111,48 +119,53 @@ const LoginModal = ({ isOpen, onClose }) => {
     }
   }
 
-  const handleSuccessfulAuth = () => {
-    login()
+  const handleSuccessfulAuth = (userLike) => {
+    login(userLike)
     onClose()
     navigate('/dashboard')
     resetForm()
   }
 
-  const handleOTPVerify = async (otpCode) => {
+  const handleOTPVerify = async (code = otpCode) => {
     setLoading(true)
+    setOtpError(false)
+    setMessage('')
+    
     try {
-      // Reload the user to get the latest email verification status
-      await pendingUser.reload()
-      
-      if (pendingUser.emailVerified) {
-        // Update user profile in Firestore
-        try {
-          await setDoc(doc(collection(db, 'users'), pendingUser.uid), {
-            email: pendingUser.email,
-            name: pendingUser.displayName || pendingUser.email?.split('@')[0],
-            emailVerified: true,
-            last_login_at: new Date().toISOString()
-          }, { merge: true });
-        } catch {}
-        
-        handleSuccessfulAuth()
-      } else {
-        setMessage('Email not verified yet. Please check your email and click the verification link.')
-      }
-    } catch (error) {
-      setMessage('Verification failed. Please try again.')
+      const action = isSignup ? verifyEmailCode : verifyLoginCode
+      const result = await action(formData.email, code)
+      handleSuccessfulAuth(result.user)
+    } catch (_e) {
+      setOtpError(true)
+      setMessage('Invalid or expired code. Please try again.')
     } finally {
       setLoading(false)
     }
   }
 
+  const handleOTPChange = (value) => {
+    setOtpCode(value)
+    setOtpError(false)
+    setMessage('')
+  }
+
+  const handleOTPComplete = (value) => {
+    if (value.length === 6) {
+      handleOTPVerify(value)
+    }
+  }
+
   const handleResendOTP = async () => {
+    if (countdown > 0) return
     setLoading(true)
+    setOtpError(false)
+    setOtpCode('')
     try {
-      await resendVerificationEmail()
-      setMessage('Verification email sent! Please check your inbox.')
-    } catch (error) {
-      setMessage('Failed to resend verification email. Please try again.')
+      await resendOtp(formData.email, isSignup ? 'email_verify' : 'login')
+      setMessage('Code sent! Check your email.')
+      setCountdown(60)
+    } catch (_e) {
+      setMessage('Failed to resend code. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -160,8 +173,9 @@ const LoginModal = ({ isOpen, onClose }) => {
 
   const handleBackToAuth = () => {
     setCurrentStep('auth')
-    setPendingUser(null)
     setMessage('')
+    setOtpError(false)
+    setOtpCode('')
   }
 
   const handleForgotPassword = async (e) => {
@@ -202,7 +216,8 @@ const LoginModal = ({ isOpen, onClose }) => {
     setMessage('')
     setCurrentStep('auth')
     setCountdown(0)
-    setPendingUser(null)
+    setOtpCode('')
+    setOtpError(false)
   }
 
   const toggleMode = () => {
@@ -217,7 +232,7 @@ const LoginModal = ({ isOpen, onClose }) => {
     setCountdown(0)
   }
 
-  // No OTP resend needed
+  // OTP entry
 
   const renderAuthStep = () => (
     <form onSubmit={handleAuthSubmit} className="space-y-4">
@@ -471,14 +486,92 @@ const LoginModal = ({ isOpen, onClose }) => {
         {currentStep === 'auth' && renderAuthStep()}
         {currentStep === 'forgot' && renderForgotStep()}
         {currentStep === 'otp' && (
-          <OTPVerification
-            email={formData.email}
-            onVerify={handleOTPVerify}
-            onResend={handleResendOTP}
-            onBack={handleBackToAuth}
-            isSignup={isSignup}
-            loading={loading}
-          />
+          <div className="space-y-6">
+            <div className="text-center">
+              <div className="text-6xl mb-4">🔐</div>
+              <h3 className={`text-xl font-bold mb-2 ${
+                isDark ? 'text-gray-200' : 'text-gray-800'
+              }`}>
+                Enter Verification Code
+              </h3>
+              <p className={`text-sm mb-4 ${
+                isDark ? 'text-gray-300' : 'text-gray-600'
+              }`}>
+                We've sent a 6-digit code to
+              </p>
+              <p className={`font-medium mb-6 ${
+                isDark ? 'text-cyan-400' : 'text-cyan-600'
+              }`}>
+                {formData.email}
+              </p>
+            </div>
+
+            <OTPInput
+              value={otpCode}
+              onChange={handleOTPChange}
+              onComplete={handleOTPComplete}
+              disabled={loading}
+              error={otpError}
+              length={6}
+            />
+
+            {message && (
+              <div className={`text-center text-sm ${
+                otpError ? 'text-red-500' : isDark ? 'text-green-300' : 'text-green-600'
+              }`}>
+                {message}
+              </div>
+            )}
+
+            <button
+              onClick={() => handleOTPVerify()}
+              disabled={loading || otpCode.length !== 6}
+              className={`w-full text-white py-3 rounded-lg font-medium transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed ${
+                isDark 
+                  ? 'bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700' 
+                  : 'bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600'
+              }`}
+            >
+              {loading ? (
+                <div className="flex items-center justify-center space-x-2">
+                  <LoadingSpinner size="sm" text="" />
+                  <span>Verifying...</span>
+                </div>
+              ) : (
+                'Verify Code'
+              )}
+            </button>
+
+            <div className="text-center space-y-2">
+              {countdown > 0 ? (
+                <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                  Resend code in {countdown}s
+                </p>
+              ) : (
+                <button 
+                  type="button" 
+                  onClick={handleResendOTP}
+                  disabled={loading}
+                  className={`text-sm underline transition-colors duration-200 ${
+                    isDark ? 'text-cyan-400 hover:text-cyan-300' : 'text-cyan-600 hover:text-cyan-700'
+                  } disabled:opacity-50`}
+                >
+                  Resend Code
+                </button>
+              )}
+              
+              <button 
+                type="button" 
+                onClick={handleBackToAuth}
+                disabled={loading}
+                className={`block mx-auto text-sm transition-colors duration-200 ${
+                  isDark ? 'text-gray-400 hover:text-gray-200' : 'text-gray-600 hover:text-gray-800'
+                } disabled:opacity-50`}
+              >
+                ← Back to {isSignup ? 'Sign Up' : 'Sign In'}
+              </button>
+            </div>
+          </div>
         )}
 
         {currentStep === 'auth' && (

@@ -1,42 +1,18 @@
 import React, { useEffect, useState } from 'react'
 import { useTheme } from '../contexts/ThemeContext'
-import { verifyEmail } from '../api'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 
 const EmailVerificationHandler = () => {
   const { isDark } = useTheme()
-  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const [status, setStatus] = useState('verifying') // 'verifying', 'success', 'error'
   const [message, setMessage] = useState('')
 
   useEffect(() => {
-    const handleVerification = async () => {
-      const actionCode = searchParams.get('oobCode')
-      const mode = searchParams.get('mode')
-
-      if (mode === 'verifyEmail' && actionCode) {
-        try {
-          await verifyEmail(actionCode)
-          setStatus('success')
-          setMessage('Email verified successfully! You can now sign in.')
-          
-          // Redirect to login after 3 seconds
-          setTimeout(() => {
-            navigate('/')
-          }, 3000)
-        } catch (error) {
-          setStatus('error')
-          setMessage('Verification failed. The link may be expired or invalid.')
-        }
-      } else {
-        setStatus('error')
-        setMessage('Invalid verification link.')
-      }
-    }
-
-    handleVerification()
-  }, [searchParams, navigate])
+    // Email link verification removed. We use OTP codes now.
+    setStatus('error')
+    setMessage('Email verification now uses a 6-digit code sent to your email. Please enter it on the login screen.')
+  }, [navigate])
 
   return (
     <div className={`min-h-screen flex items-center justify-center ${
@@ -48,17 +24,7 @@ const EmailVerificationHandler = () => {
           : 'bg-white border-gray-200'
       }`}>
         <div className="text-center">
-          {status === 'verifying' && (
-            <>
-              <div className="text-6xl mb-4">⏳</div>
-              <h2 className={`text-2xl font-bold mb-4 ${
-                isDark ? 'text-gray-200' : 'text-gray-800'
-              }`}>
-                Verifying Email...
-              </h2>
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-500 mx-auto"></div>
-            </>
-          )}
+          {status === 'verifying' && null}
 
           {status === 'success' && (
             <>

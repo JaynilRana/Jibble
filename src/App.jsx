@@ -13,7 +13,7 @@ import Stats from './components/Stats'
 import Export from './components/Export'
 import WeeklyReportPage from './components/WeeklyReportPage'
 import FingerprintModal from './components/FingerprintModal'
-import EmailVerificationHandler from './components/EmailVerificationHandler'
+ 
 import LoadingSpinner from './components/LoadingSpinner'
 import ScrollProgressBar from './components/ScrollProgressBar'
 import useRevealOnScroll from './utils/useRevealOnScroll'
@@ -66,7 +66,7 @@ function AppContent() {
         {/* Public routes */}
         <Route path="/" element={<Home />} />
         <Route path="/about" element={<About />} />
-        <Route path="/verify-email" element={<EmailVerificationHandler />} />
+        {/* Email verification via link removed; OTP-only flow */}
         
         {/* Protected routes - redirect to home if not logged in */}
         <Route 

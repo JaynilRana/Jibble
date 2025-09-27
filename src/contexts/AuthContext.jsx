@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { getProfile, logout as apiLogout } from '../api'
-import { auth } from '../services/firebase'
-import { onAuthStateChanged } from 'firebase/auth'
+ 
 
 const AuthContext = createContext()
 
@@ -18,22 +17,31 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  // Firebase auth state listener
+  // Initialize from localStorage JWT
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (u) => {
-      if (u) {
+    try {
+      const raw = localStorage.getItem('authUser')
+      if (raw) {
+        const u = JSON.parse(raw)
         setIsLoggedIn(true)
-        setUser({ id: u.uid, email: u.email, name: u.displayName || u.email?.split('@')[0] })
+        setUser(u)
       } else {
         setIsLoggedIn(false)
         setUser(null)
       }
+    } catch (_) {
+      setIsLoggedIn(false)
+      setUser(null)
+    } finally {
       setLoading(false)
-    })
-    return () => unsub()
+    }
   }, [])
 
-  const login = async () => ({ success: true })
+  const login = async (userLike) => {
+    if (userLike) setUser(userLike)
+    setIsLoggedIn(true)
+    return { success: true }
+  }
 
   const handleLogout = async () => {
     try {
@@ -46,6 +54,8 @@ export const AuthProvider = ({ children }) => {
       console.error('Logout API call failed:', error)
     } finally {
       // Clear local state and storage
+      localStorage.removeItem('authToken')
+      localStorage.removeItem('authUser')
       setUser(null)
       setIsLoggedIn(false)
       

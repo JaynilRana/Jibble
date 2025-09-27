@@ -4,7 +4,13 @@ import { useAuth } from '../contexts/AuthContext'
 import { exportData, exportDataByDateRange, exportWeeklyReportPDF, importData, clearAllData, getWeeklyReports } from '../api'
 import jsPDF from 'jspdf'
 import Footer from './Footer'
-import { getCurrentDateKey } from '../utils/dateUtils'
+import { getCurrentDateKey, getCurrentWeekStart } from '../utils/dateUtils'
+
+// Utility function to sanitize text for PDF generation
+const sanitizeText = (text) => {
+  if (!text) return ''
+  return text.replace(/[^\x00-\x7F]/g, '') // Remove non-ASCII characters
+}
 
 const Export = () => {
   const { isDark } = useTheme()
@@ -14,7 +20,7 @@ const Export = () => {
   const [clearing, setClearing] = useState(false)
   const [importFile, setImportFile] = useState(null)
   const [message, setMessage] = useState('')
-  const [exportType, setExportType] = useState('all') // 'all', 'dateRange', 'weekly'
+  const [exportType, setExportType] = useState('all') // 'all', 'dateRange', 'weekly', 'thisWeek'
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [selectedWeek, setSelectedWeek] = useState('')
@@ -95,7 +101,7 @@ const Export = () => {
         
         doc.setFontSize(10)
         doc.setFont('helvetica', 'italic')
-        const quoteText = `"${log.quote}"`
+        const quoteText = `"${sanitizeText(log.quote)}"`
         const splitQuote = doc.splitTextToSize(quoteText, 160)
         doc.text(splitQuote, 25, yPosition + 3)
         yPosition += 15
@@ -126,7 +132,7 @@ const Export = () => {
           const status = task.completed ? '[DONE]' : '[TODO]'
           const textColor = task.completed ? [34, 197, 94] : [107, 114, 128] // Green or gray
           doc.setTextColor(...textColor)
-          const taskText = `${status} ${task.text}`
+          const taskText = `${status} ${sanitizeText(task.text)}`
           const splitTask = doc.splitTextToSize(taskText, 150)
           doc.text(splitTask, 25, yPosition)
           yPosition += 5 + (splitTask.length - 1) * 4
@@ -212,6 +218,62 @@ const Export = () => {
         doc.setTextColor(0, 0, 0)
       }
 
+      // Diet section
+      if (log.diet && (log.diet.protein || log.diet.calories || log.diet.water)) {
+        // Check if we need a new page for diet
+        if (yPosition > 220) {
+          doc.addPage()
+          yPosition = 20
+        }
+        
+        doc.setFontSize(12)
+        doc.setFont('helvetica', 'bold')
+        doc.text('Diet & Nutrition:', 20, yPosition)
+        yPosition += 8
+        
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(10)
+        
+        if (log.diet.protein) {
+          doc.text(`Protein: ${log.diet.protein}g`, 20, yPosition)
+          yPosition += 6
+        }
+        if (log.diet.calories) {
+          doc.text(`Calories: ${log.diet.calories} kcal`, 20, yPosition)
+          yPosition += 6
+        }
+        if (log.diet.water) {
+          doc.text(`Water: ${log.diet.water}L`, 20, yPosition)
+          yPosition += 6
+        }
+        yPosition += 5
+      }
+
+      // Steps section
+      if (log.steps) {
+        // Check if we need a new page for steps
+        if (yPosition > 220) {
+          doc.addPage()
+          yPosition = 20
+        }
+        
+        doc.setFontSize(12)
+        doc.setFont('helvetica', 'bold')
+        doc.text('Daily Activity:', 20, yPosition)
+        yPosition += 8
+        
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(10)
+        doc.text(`Steps: ${log.steps.toLocaleString()}`, 20, yPosition)
+        
+        // Visual progress bar for steps
+        const stepsProgress = Math.min(100, (log.steps / 15000) * 100)
+        const stepsColor = stepsProgress >= 100 ? [34, 197, 94] : stepsProgress >= 80 ? [59, 130, 246] : stepsProgress >= 60 ? [245, 158, 11] : [239, 68, 68]
+        doc.setFillColor(...stepsColor)
+        doc.rect(70, yPosition - 3, (stepsProgress / 100) * 50, 4, 'F')
+        yPosition += 10
+      }
+
       // Learning section
       if (log.learning) {
         // Check if we need a new page for learning
@@ -227,7 +289,7 @@ const Export = () => {
         
         doc.setFontSize(10)
         doc.setFont('helvetica', 'normal')
-        const learningText = `Learning: ${log.learning}`
+        const learningText = `Learning: ${sanitizeText(log.learning)}`
         const splitLearning = doc.splitTextToSize(learningText, 150)
         doc.text(splitLearning, 25, yPosition + 3)
         yPosition += 15
@@ -362,6 +424,165 @@ const Export = () => {
 
     yPosition += 15
 
+    // Diet & Nutrition Section
+    if (report.average_protein || report.average_calories || report.average_water) {
+      // Check if we need a new page for diet section
+      if (yPosition > 200) {
+        doc.addPage()
+        yPosition = 20
+      }
+      
+      doc.setFontSize(16)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Diet & Nutrition Summary', 20, yPosition)
+      yPosition += 15
+
+      // Diet metrics in cards
+      const dietMetrics = [
+        { name: 'Average Protein', value: report.average_protein || 0, unit: 'g', color: [239, 68, 68], target: '50-150g daily' },
+        { name: 'Average Calories', value: report.average_calories || 0, unit: 'kcal', color: [245, 158, 11], target: '1800-2500 kcal daily' },
+        { name: 'Average Water', value: report.average_water || 0, unit: 'L', color: [59, 130, 246], target: '2-3L daily' }
+      ]
+
+      dietMetrics.forEach((metric, index) => {
+        const xPos = 20 + (index * 60)
+        const cardWidth = 55
+        const cardHeight = 25
+        
+        // Card background
+        doc.setFillColor(...metric.color)
+        doc.rect(xPos, yPosition - 5, cardWidth, cardHeight, 'F')
+        
+        // Card content
+        doc.setTextColor(255, 255, 255)
+        doc.setFontSize(10)
+        doc.setFont('helvetica', 'bold')
+        doc.text(metric.name, xPos + 3, yPosition + 2)
+        doc.setFontSize(12)
+        doc.text(`${metric.value.toFixed(1)}${metric.unit}`, xPos + 3, yPosition + 8)
+        doc.setFontSize(8)
+        doc.text(metric.target, xPos + 3, yPosition + 15)
+      })
+      
+      doc.setTextColor(0, 0, 0)
+      yPosition += 35
+
+      // Diet health indicators
+      doc.setFontSize(12)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Diet Health Indicators:', 20, yPosition)
+      yPosition += 10
+
+      const dietIndicators = [
+        { 
+          name: 'Protein Intake', 
+          status: (report.average_protein || 0) >= 50 ? 'Good' : 'Needs Improvement',
+          color: (report.average_protein || 0) >= 50 ? [34, 197, 94] : [239, 68, 68]
+        },
+        { 
+          name: 'Calorie Balance', 
+          status: (report.average_calories || 0) >= 1800 && (report.average_calories || 0) <= 2500 ? 'Balanced' : 'Monitor Intake',
+          color: (report.average_calories || 0) >= 1800 && (report.average_calories || 0) <= 2500 ? [34, 197, 94] : [245, 158, 11]
+        },
+        { 
+          name: 'Hydration', 
+          status: (report.average_water || 0) >= 2 ? 'Well Hydrated' : 'Increase Water',
+          color: (report.average_water || 0) >= 2 ? [34, 197, 94] : [239, 68, 68]
+        }
+      ]
+
+      dietIndicators.forEach(indicator => {
+        doc.setFontSize(10)
+        doc.setFont('helvetica', 'normal')
+        doc.text(`${indicator.name}: ${indicator.status}`, 20, yPosition)
+        doc.setFillColor(...indicator.color)
+        doc.circle(180, yPosition - 2, 2, 'F')
+        yPosition += 8
+      })
+      
+      yPosition += 10
+    }
+
+    // Steps & Activity Section
+    if (report.average_steps) {
+      // Check if we need a new page for steps section
+      if (yPosition > 200) {
+        doc.addPage()
+        yPosition = 20
+      }
+      
+      doc.setFontSize(16)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Activity & Fitness Summary', 20, yPosition)
+      yPosition += 15
+
+      // Steps metrics
+      const steps = report.average_steps || 0
+      const stepsColor = steps >= 15000 ? [34, 197, 94] : steps >= 10000 ? [59, 130, 246] : steps >= 8000 ? [245, 158, 11] : [239, 68, 68]
+      
+      // Steps card
+      doc.setFillColor(...stepsColor)
+      doc.rect(20, yPosition - 5, 80, 20, 'F')
+      doc.setTextColor(255, 255, 255)
+      doc.setFontSize(12)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Daily Steps', 25, yPosition + 2)
+      doc.setFontSize(10)
+      doc.text(`${Math.round(steps).toLocaleString()} steps`, 25, yPosition + 8)
+      doc.text('Target: 15,000', 25, yPosition + 13)
+      
+      // Goal achievement card
+      const goalAchievement = Math.round((steps / 15000) * 100)
+      const achievementColor = goalAchievement >= 100 ? [34, 197, 94] : goalAchievement >= 80 ? [59, 130, 246] : goalAchievement >= 60 ? [245, 158, 11] : [239, 68, 68]
+      doc.setFillColor(...achievementColor)
+      doc.rect(110, yPosition - 5, 80, 20, 'F')
+      doc.setTextColor(255, 255, 255)
+      doc.setFontSize(12)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Goal Achievement', 115, yPosition + 2)
+      doc.setFontSize(10)
+      doc.text(`${goalAchievement}%`, 115, yPosition + 8)
+      doc.text('of target', 115, yPosition + 13)
+      
+      doc.setTextColor(0, 0, 0)
+      yPosition += 30
+
+      // Activity health indicators
+      doc.setFontSize(12)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Activity Health Indicators:', 20, yPosition)
+      yPosition += 10
+
+      const activityIndicators = [
+        { 
+          name: 'Daily Activity', 
+          status: steps >= 15000 ? 'Excellent' : steps >= 10000 ? 'Good' : steps >= 8000 ? 'Moderate' : 'Needs Improvement',
+          color: steps >= 15000 ? [34, 197, 94] : steps >= 10000 ? [59, 130, 246] : steps >= 8000 ? [245, 158, 11] : [239, 68, 68]
+        },
+        { 
+          name: 'Cardiovascular Health', 
+          status: steps >= 12000 ? 'Great Support' : 'More Steps Needed',
+          color: steps >= 12000 ? [34, 197, 94] : [245, 158, 11]
+        },
+        { 
+          name: 'Fitness Level', 
+          status: steps >= 10000 ? 'Active Lifestyle' : 'Build More Activity',
+          color: steps >= 10000 ? [34, 197, 94] : [245, 158, 11]
+        }
+      ]
+
+      activityIndicators.forEach(indicator => {
+        doc.setFontSize(10)
+        doc.setFont('helvetica', 'normal')
+        doc.text(`${indicator.name}: ${indicator.status}`, 20, yPosition)
+        doc.setFillColor(...indicator.color)
+        doc.circle(180, yPosition - 2, 2, 'F')
+        yPosition += 8
+      })
+      
+      yPosition += 15
+    }
+
     // Personal Insights with enhanced styling
     if (report.personal_insights) {
       // Check if we need a new page for insights section
@@ -396,7 +617,7 @@ const Export = () => {
         doc.setFont('helvetica', 'normal')
         doc.setFontSize(10)
         report.personal_insights.suggestions.forEach((suggestion, index) => {
-          const suggestionText = `${index + 1}. ${suggestion}`
+          const suggestionText = `${index + 1}. ${sanitizeText(suggestion)}`
           const splitSuggestion = doc.splitTextToSize(suggestionText, 150)
           doc.text(splitSuggestion, 25, yPosition)
           yPosition += 6 + (splitSuggestion.length - 1) * 4
@@ -425,7 +646,7 @@ const Export = () => {
         doc.setFont('helvetica', 'normal')
         doc.setFontSize(10)
         report.personal_insights.positives.forEach(positive => {
-          const positiveText = `• ${positive}`
+          const positiveText = `- ${sanitizeText(positive)}`
           const splitPositive = doc.splitTextToSize(positiveText, 150)
           doc.text(splitPositive, 25, yPosition)
           yPosition += 6 + (splitPositive.length - 1) * 4
@@ -454,7 +675,7 @@ const Export = () => {
         doc.setFont('helvetica', 'normal')
         doc.setFontSize(10)
         report.personal_insights.negatives.forEach(negative => {
-          const negativeText = `• ${negative}`
+          const negativeText = `- ${sanitizeText(negative)}`
           const splitNegative = doc.splitTextToSize(negativeText, 150)
           doc.text(splitNegative, 25, yPosition)
           yPosition += 6 + (splitNegative.length - 1) * 4
@@ -513,6 +734,17 @@ const Export = () => {
         filename = `jibble-weekly-report-${selectedWeek}.pdf`
         doc.save(filename)
         setMessage('Weekly report PDF exported successfully!')
+      } else if (exportType === 'thisWeek') {
+        const currentWeekStart = getCurrentWeekStart()
+        data = await exportWeeklyReportPDF(currentWeekStart)
+        if (!data) {
+          setMessage('No data available for this week.')
+          return
+        }
+        doc = generateWeeklyReportPDF(data)
+        filename = `jibble-this-week-report-${currentWeekStart}.pdf`
+        doc.save(filename)
+        setMessage('This week\'s report PDF exported successfully!')
       }
     } catch (error) {
       console.error('Export error:', error)
@@ -660,6 +892,16 @@ const Export = () => {
                 />
                 <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>Weekly Report (PDF)</span>
               </label>
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  value="thisWeek"
+                  checked={exportType === 'thisWeek'}
+                  onChange={(e) => setExportType(e.target.value)}
+                  className="mr-2"
+                />
+                <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>This Week's Report (PDF)</span>
+              </label>
             </div>
           </div>
 
@@ -738,7 +980,7 @@ const Export = () => {
                 : 'bg-blue-500 text-white hover:bg-blue-600'
             }`}
           >
-            {exporting ? 'Exporting...' : `Export ${exportType === 'all' ? 'Data' : exportType === 'dateRange' ? 'PDF' : 'Weekly Report'}`}
+            {exporting ? 'Exporting...' : `Export ${exportType === 'all' ? 'Data' : exportType === 'dateRange' ? 'PDF' : exportType === 'weekly' ? 'Weekly Report' : 'This Week\'s Report'}`}
           </button>
         </div>
 
@@ -852,6 +1094,9 @@ const Export = () => {
                 <li>• All data export (JSON backup)</li>
                 <li>• Date range filtered logs (PDF)</li>
                 <li>• Weekly performance reports (PDF)</li>
+                <li>• This week's report (PDF)</li>
+                <li>• Diet & nutrition tracking</li>
+                <li>• Steps & activity metrics</li>
                 <li>• Professional PDF formatting</li>
                 <li>• Personal insights included</li>
               </ul>
