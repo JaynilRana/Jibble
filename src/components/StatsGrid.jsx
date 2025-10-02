@@ -14,7 +14,9 @@ const StatsGrid = () => {
   })
   const [streakInfo, setStreakInfo] = useState({
     isStreakBroken: false,
-    streakBrokenInfo: null
+    streakBrokenInfo: null,
+    isMilestone: false,
+    milestoneInfo: null
   })
   const [loading, setLoading] = useState(true)
 
@@ -33,7 +35,9 @@ const StatsGrid = () => {
         const streakStats = getStreakStats(logs)
         setStreakInfo({
           isStreakBroken: streakStats.isStreakBroken,
-          streakBrokenInfo: streakStats.streakBrokenInfo
+          streakBrokenInfo: streakStats.streakBrokenInfo,
+          isMilestone: streakStats.isMilestone,
+          milestoneInfo: streakStats.milestoneInfo
         })
       } catch (error) {
         console.error('Error loading stats:', error)
@@ -107,9 +111,17 @@ const StatsGrid = () => {
           ? (isDark 
               ? 'bg-gradient-to-br from-orange-900/40 to-red-900/40 border-orange-800' 
               : 'bg-gradient-to-br from-orange-50 to-red-50 border-orange-100')
-          : (isDark 
-              ? 'bg-gradient-to-br from-blue-900/40 to-indigo-900/40 border-blue-800' 
-              : 'bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-100')
+          : streakInfo.isMilestone && streakInfo.milestoneInfo?.isSpecialMilestone
+            ? (isDark 
+                ? 'bg-gradient-to-br from-yellow-900/40 to-amber-900/40 border-yellow-600' 
+                : 'bg-gradient-to-br from-yellow-50 to-amber-50 border-yellow-300')
+            : streakInfo.isMilestone
+              ? (isDark 
+                  ? 'bg-gradient-to-br from-green-900/40 to-emerald-900/40 border-green-600' 
+                  : 'bg-gradient-to-br from-green-50 to-emerald-50 border-green-300')
+              : (isDark 
+                  ? 'bg-gradient-to-br from-blue-900/40 to-indigo-900/40 border-blue-800' 
+                  : 'bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-100')
       }`}>
         {streakInfo.isStreakBroken ? (
           <div>
@@ -128,11 +140,31 @@ const StatsGrid = () => {
         ) : (
           <div>
             <div className={`text-3xl font-bold mb-1 ${
-              isDark ? 'text-blue-400' : 'text-blue-600'
-            }`}>🔥 {stats.currentStreak}</div>
+              streakInfo.isMilestone && streakInfo.milestoneInfo?.isSpecialMilestone
+                ? (isDark ? 'text-yellow-400' : 'text-yellow-600')
+                : streakInfo.isMilestone
+                  ? (isDark ? 'text-green-400' : 'text-green-600')
+                  : (isDark ? 'text-blue-400' : 'text-blue-600')
+            }`}>
+              {streakInfo.isMilestone && streakInfo.milestoneInfo?.isSpecialMilestone ? '🏆' : 
+               streakInfo.isMilestone ? '🎉' : '🔥'} {stats.currentStreak}
+            </div>
             <div className={`font-medium ${
-              isDark ? 'text-indigo-300' : 'text-indigo-600'
-            }`}>Day Streak</div>
+              streakInfo.isMilestone && streakInfo.milestoneInfo?.isSpecialMilestone
+                ? (isDark ? 'text-yellow-300' : 'text-yellow-700')
+                : streakInfo.isMilestone
+                  ? (isDark ? 'text-green-300' : 'text-green-700')
+                  : (isDark ? 'text-indigo-300' : 'text-indigo-600')
+            }`}>
+              {streakInfo.isMilestone ? 'Milestone!' : 'Day Streak'}
+            </div>
+            {streakInfo.isMilestone && (
+              <div className={`mt-2 text-xs px-2 py-1 rounded-lg ${
+                isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'
+              }`}>
+                {streakInfo.milestoneInfo?.celebrationMessage}
+              </div>
+            )}
           </div>
         )}
       </div>

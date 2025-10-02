@@ -180,6 +180,67 @@ const getEncouragingMessage = (lastStreak, daysSinceLastLog) => {
 }
 
 /**
+ * Check if current streak is at a milestone and should be celebrated
+ * @param {number} currentStreak - Current streak count
+ * @param {Array} logs - Array of log objects to check if this is a new milestone
+ * @returns {Object} Milestone information
+ */
+export const checkStreakMilestone = (currentStreak, logs) => {
+  if (currentStreak === 0) return { isMilestone: false }
+  
+  // Define milestone points
+  const milestones = [10, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330, 365]
+  
+  // Check if current streak is a milestone
+  const isMilestone = milestones.includes(currentStreak) || 
+                     (currentStreak > 365 && currentStreak % 30 === 0)
+  
+  if (!isMilestone) return { isMilestone: false }
+  
+  // Get celebration message
+  const celebrationMessage = getCelebrationMessage(currentStreak)
+  
+  return {
+    isMilestone: true,
+    milestone: currentStreak,
+    celebrationMessage,
+    isSpecialMilestone: [10, 30, 100, 365].includes(currentStreak)
+  }
+}
+
+/**
+ * Get celebration message for streak milestones
+ * @param {number} streak - Current streak count
+ * @returns {string} Celebration message
+ */
+const getCelebrationMessage = (streak) => {
+  if (streak === 10) {
+    return "🎉 First milestone reached! 10 days strong! You're building a great habit! 💪"
+  } else if (streak === 30) {
+    return "🌟 Amazing! 30 days of consistency! You're officially on fire! 🔥"
+  } else if (streak === 60) {
+    return "🚀 Two months of dedication! 60 days is incredible progress! Keep soaring! ✨"
+  } else if (streak === 90) {
+    return "👑 Three months of excellence! You're a logging champion! 🏆"
+  } else if (streak === 100) {
+    return "💯 CENTURY CLUB! 100 days of pure dedication! You're unstoppable! 🎯"
+  } else if (streak === 180) {
+    return "🌈 Half a year of consistency! 180 days of growth and reflection! 📈"
+  } else if (streak === 365) {
+    return "🎊 FULL YEAR ACHIEVED! 365 days of commitment! You're a true legend! 👑"
+  } else if (streak > 365) {
+    const years = Math.floor(streak / 365)
+    const extraDays = streak % 365
+    return `🌟 ${years} year${years > 1 ? 's' : ''} ${extraDays > 0 ? `and ${extraDays} days` : ''} of dedication! You're rewriting the definition of consistency! 🚀`
+  } else if (streak % 30 === 0) {
+    const months = streak / 30
+    return `🎉 ${months} months of unwavering commitment! ${streak} days and counting! 💎`
+  }
+  
+  return `🎉 ${streak} days of awesome progress! Keep the momentum going! 🔥`
+}
+
+/**
  * Get streak statistics
  * @param {Array} logs - Array of log objects with date property
  * @returns {Object} Streak statistics
@@ -187,12 +248,15 @@ const getEncouragingMessage = (lastStreak, daysSinceLastLog) => {
 export const getStreakStats = (logs) => {
   const currentStreak = calculateCurrentStreak(logs)
   const streakBrokenInfo = checkStreakBroken(logs)
+  const milestoneInfo = checkStreakMilestone(currentStreak, logs)
   
   return {
     currentStreak,
     longestStreak: calculateLongestStreak(logs),
     isStreakBroken: streakBrokenInfo.isBroken,
-    streakBrokenInfo
+    streakBrokenInfo,
+    isMilestone: milestoneInfo.isMilestone,
+    milestoneInfo
   }
 }
 

@@ -105,7 +105,9 @@ const Stats = () => {
             averageRating: averageRating,
             completionRate: completionRate,
             isStreakBroken: streakStats.isStreakBroken,
-            streakBrokenInfo: streakStats.streakBrokenInfo
+            streakBrokenInfo: streakStats.streakBrokenInfo,
+            isMilestone: streakStats.isMilestone,
+            milestoneInfo: streakStats.milestoneInfo
           },
           monthly: {
             logs: monthlyLogs.length,
@@ -236,9 +238,17 @@ const Stats = () => {
               ? (isDark 
                   ? 'bg-orange-900/20 border-orange-600' 
                   : 'bg-orange-50 border-orange-200')
-              : (isDark 
-                  ? 'bg-gray-800 border-gray-600' 
-                  : 'bg-white border-gray-200')
+              : statsData.overview.isMilestone && statsData.overview.milestoneInfo?.isSpecialMilestone
+                ? (isDark 
+                    ? 'bg-yellow-900/20 border-yellow-600' 
+                    : 'bg-yellow-50 border-yellow-300')
+                : statsData.overview.isMilestone
+                  ? (isDark 
+                      ? 'bg-green-900/20 border-green-600' 
+                      : 'bg-green-50 border-green-300')
+                  : (isDark 
+                      ? 'bg-gray-800 border-gray-600' 
+                      : 'bg-white border-gray-200')
           }`}>
             <div className="flex items-center justify-between">
               <div className="flex-1">
@@ -246,11 +256,24 @@ const Stats = () => {
                   isDark ? 'text-gray-400' : 'text-gray-600'
                 }`}>
                   Current Streak
+                  {statsData.overview.isMilestone && (
+                    <span className={`ml-2 px-2 py-1 text-xs rounded-full ${
+                      statsData.overview.milestoneInfo?.isSpecialMilestone
+                        ? (isDark ? 'bg-yellow-600 text-yellow-100' : 'bg-yellow-200 text-yellow-800')
+                        : (isDark ? 'bg-green-600 text-green-100' : 'bg-green-200 text-green-800')
+                    }`}>
+                      MILESTONE!
+                    </span>
+                  )}
                 </p>
                 <p className={`text-3xl font-bold ${
                   statsData.overview.isStreakBroken
                     ? (isDark ? 'text-orange-400' : 'text-orange-600')
-                    : (isDark ? 'text-green-400' : 'text-green-600')
+                    : statsData.overview.isMilestone && statsData.overview.milestoneInfo?.isSpecialMilestone
+                      ? (isDark ? 'text-yellow-400' : 'text-yellow-600')
+                      : statsData.overview.isMilestone
+                        ? (isDark ? 'text-green-400' : 'text-green-600')
+                        : (isDark ? 'text-green-400' : 'text-green-600')
                 }`}>
                   {statsData.overview.currentStreak}
                 </p>
@@ -261,9 +284,18 @@ const Stats = () => {
                     {statsData.overview.streakBrokenInfo?.encouragingMessage}
                   </div>
                 )}
+                {statsData.overview.isMilestone && (
+                  <div className={`mt-2 text-xs px-2 py-1 rounded-lg ${
+                    isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'
+                  }`}>
+                    {statsData.overview.milestoneInfo?.celebrationMessage}
+                  </div>
+                )}
               </div>
               <div className="text-3xl">
-                {statsData.overview.isStreakBroken ? '💔' : '🔥'}
+                {statsData.overview.isStreakBroken ? '💔' : 
+                 statsData.overview.isMilestone && statsData.overview.milestoneInfo?.isSpecialMilestone ? '🏆' :
+                 statsData.overview.isMilestone ? '🎉' : '🔥'}
               </div>
             </div>
           </div>
