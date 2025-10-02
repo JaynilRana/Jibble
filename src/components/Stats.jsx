@@ -103,7 +103,9 @@ const Stats = () => {
             currentStreak: streakStats.currentStreak,
             longestStreak: streakStats.longestStreak,
             averageRating: averageRating,
-            completionRate: completionRate
+            completionRate: completionRate,
+            isStreakBroken: streakStats.isStreakBroken,
+            streakBrokenInfo: streakStats.streakBrokenInfo
           },
           monthly: {
             logs: monthlyLogs.length,
@@ -230,24 +232,39 @@ const Stats = () => {
           </div>
 
           <div className={`p-6 rounded-xl border-2 transition-colors duration-300 ${
-            isDark 
-              ? 'bg-gray-800 border-gray-600' 
-              : 'bg-white border-gray-200'
+            statsData.overview.isStreakBroken
+              ? (isDark 
+                  ? 'bg-orange-900/20 border-orange-600' 
+                  : 'bg-orange-50 border-orange-200')
+              : (isDark 
+                  ? 'bg-gray-800 border-gray-600' 
+                  : 'bg-white border-gray-200')
           }`}>
             <div className="flex items-center justify-between">
-              <div>
+              <div className="flex-1">
                 <p className={`text-sm font-source-sans ${
                   isDark ? 'text-gray-400' : 'text-gray-600'
                 }`}>
                   Current Streak
                 </p>
                 <p className={`text-3xl font-bold ${
-                  isDark ? 'text-green-400' : 'text-green-600'
+                  statsData.overview.isStreakBroken
+                    ? (isDark ? 'text-orange-400' : 'text-orange-600')
+                    : (isDark ? 'text-green-400' : 'text-green-600')
                 }`}>
                   {statsData.overview.currentStreak}
                 </p>
+                {statsData.overview.isStreakBroken && (
+                  <div className={`mt-2 text-xs px-2 py-1 rounded-lg ${
+                    isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'
+                  }`}>
+                    {statsData.overview.streakBrokenInfo?.encouragingMessage}
+                  </div>
+                )}
               </div>
-              <div className="text-3xl">🔥</div>
+              <div className="text-3xl">
+                {statsData.overview.isStreakBroken ? '💔' : '🔥'}
+              </div>
             </div>
           </div>
 

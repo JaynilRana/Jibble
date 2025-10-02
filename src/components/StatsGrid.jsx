@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { useTheme } from '../contexts/ThemeContext'
 import { useAuth } from '../contexts/AuthContext'
-import { getDashboardStats } from '../api'
+import { getDashboardStats, getLogs } from '../api'
+import { getStreakStats } from '../utils/streakUtils'
 
 const StatsGrid = () => {
   const { isDark } = useTheme()
@@ -10,6 +11,10 @@ const StatsGrid = () => {
     totalLogs: 0,
     currentStreak: 0,
     averageRating: 0
+  })
+  const [streakInfo, setStreakInfo] = useState({
+    isStreakBroken: false,
+    streakBrokenInfo: null
   })
   const [loading, setLoading] = useState(true)
 
@@ -21,6 +26,15 @@ const StatsGrid = () => {
         setLoading(true)
         const dashboardStats = await getDashboardStats()
         setStats(dashboardStats)
+        
+        // Load logs to check for streak information
+        const logsResponse = await getLogs()
+        const logs = logsResponse.success ? logsResponse.data : []
+        const streakStats = getStreakStats(logs)
+        setStreakInfo({
+          isStreakBroken: streakStats.isStreakBroken,
+          streakBrokenInfo: streakStats.streakBrokenInfo
+        })
       } catch (error) {
         console.error('Error loading stats:', error)
       } finally {
@@ -89,16 +103,38 @@ const StatsGrid = () => {
         }`}>Avg. Rating</div>
       </div>
       <div className={`rounded-xl shadow-lg p-6 text-center border transition-colors duration-300 ${
-        isDark 
-          ? 'bg-gradient-to-br from-blue-900/40 to-indigo-900/40 border-blue-800' 
-          : 'bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-100'
+        streakInfo.isStreakBroken
+          ? (isDark 
+              ? 'bg-gradient-to-br from-orange-900/40 to-red-900/40 border-orange-800' 
+              : 'bg-gradient-to-br from-orange-50 to-red-50 border-orange-100')
+          : (isDark 
+              ? 'bg-gradient-to-br from-blue-900/40 to-indigo-900/40 border-blue-800' 
+              : 'bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-100')
       }`}>
-        <div className={`text-3xl font-bold mb-1 ${
-          isDark ? 'text-blue-400' : 'text-blue-600'
-        }`}>🔥 {stats.currentStreak}</div>
-        <div className={`font-medium ${
-          isDark ? 'text-indigo-300' : 'text-indigo-600'
-        }`}>Day Streak</div>
+        {streakInfo.isStreakBroken ? (
+          <div>
+            <div className={`text-2xl font-bold mb-1 ${
+              isDark ? 'text-orange-400' : 'text-orange-600'
+            }`}>💔 0</div>
+            <div className={`font-medium mb-2 ${
+              isDark ? 'text-red-300' : 'text-red-600'
+            }`}>Streak Broken</div>
+            <div className={`text-xs px-2 py-1 rounded-lg ${
+              isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600'
+            }`}>
+              {streakInfo.streakBrokenInfo?.encouragingMessage}
+            </div>
+          </div>
+        ) : (
+          <div>
+            <div className={`text-3xl font-bold mb-1 ${
+              isDark ? 'text-blue-400' : 'text-blue-600'
+            }`}>🔥 {stats.currentStreak}</div>
+            <div className={`font-medium ${
+              isDark ? 'text-indigo-300' : 'text-indigo-600'
+            }`}>Day Streak</div>
+          </div>
+        )}
       </div>
     </div>
   )
