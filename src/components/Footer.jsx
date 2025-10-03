@@ -172,7 +172,7 @@ const Footer = () => {
           <p className={`text-sm font-source-sans ${
             isDark ? 'text-gray-400' : 'text-gray-400'
           }`}>
-            © 2024 Jibble. All rights reserved. Made with ❤️ for personal growth.
+            © 2025 Jibble. Made with ❤️ for personal growth.
           </p>
         </div>
       </div>
