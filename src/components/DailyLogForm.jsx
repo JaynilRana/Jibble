@@ -50,8 +50,8 @@ const DailyLogForm = ({ currentDate }) => {
     const loadExistingLog = async () => {
       setIsLoading(true)
       try {
-        // First try a local draft
-        const draft = draftService.getDraft(user.id, dateKey)
+        // First try to load draft (now async)
+        const draft = await draftService.getDraft(user.id, dateKey)
         if (draft) {
           setFormData(prev => ({
             ...prev,
@@ -130,11 +130,11 @@ const DailyLogForm = ({ currentDate }) => {
     loadExistingLog()
   }, [currentDate, user, dailyQuote])
 
-  const persistDraft = (partial) => {
+  const persistDraft = async (partial) => {
     const dateKey = getDateKey(currentDate)
     if (!dateKey || !user) return
     const next = { ...formData, ...partial }
-    draftService.saveDraft(user.id, dateKey, next)
+    await draftService.saveDraft(user.id, dateKey, next)
   }
 
   const updateQuote = (newQuote) => {
@@ -205,7 +205,7 @@ const DailyLogForm = ({ currentDate }) => {
       setSaveStatus('success')
       setTimeout(() => setSaveStatus('idle'), 2500)
       if (user) {
-        draftService.clearDraft(user.id, dateKey)
+        await draftService.clearDraft(user.id, dateKey)
       }
       
       // Dispatch custom event to notify other components of log update

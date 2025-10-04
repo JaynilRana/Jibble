@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useTheme } from '../contexts/ThemeContext'
 import { useAuth } from '../contexts/AuthContext'
 import LoadingSpinner from './LoadingSpinner'
-import OTPVerification from './OTPVerification'
-import { emailSignUp, emailSignIn, forgotPassword, resendVerificationEmail } from '../api'
+import { emailSignUp, emailSignIn, forgotPassword } from '../api'
 import { useNavigate } from 'react-router-dom'
 import { db } from '../services/firebase'
 import { doc, setDoc, collection } from 'firebase/firestore'
@@ -12,11 +11,9 @@ const LoginModal = ({ isOpen, onClose }) => {
   const { isDark } = useTheme()
   const { login } = useAuth()
   const navigate = useNavigate()
-  const [currentStep, setCurrentStep] = useState('auth') // 'auth', 'forgot', 'otp'
+  const [currentStep, setCurrentStep] = useState('auth') // 'auth', 'forgot'
   const [isSignup, setIsSignup] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [countdown, setCountdown] = useState(0)
-  const [pendingUser, setPendingUser] = useState(null)
   
   const [formData, setFormData] = useState({
     name: '',
@@ -95,14 +92,8 @@ const LoginModal = ({ isOpen, onClose }) => {
         result = await emailSignIn(formData.email, formData.password)
       }
 
-      // Check if email verification is needed
-      if (result.needsVerification) {
-        setPendingUser(result.user)
-        setMessage(result.message)
-        setCurrentStep('otp')
-      } else {
-        handleSuccessfulAuth()
-      }
+      // No email verification needed anymore - proceed directly to success
+      handleSuccessfulAuth()
     } catch (error) {
       const msg = error?.message || 'Authentication failed. Please try again.'
       setErrors({ email: msg, password: '' })
@@ -118,51 +109,6 @@ const LoginModal = ({ isOpen, onClose }) => {
     resetForm()
   }
 
-  const handleOTPVerify = async (otpCode) => {
-    setLoading(true)
-    try {
-      // Reload the user to get the latest email verification status
-      await pendingUser.reload()
-      
-      if (pendingUser.emailVerified) {
-        // Update user profile in Firestore
-        try {
-          await setDoc(doc(collection(db, 'users'), pendingUser.uid), {
-            email: pendingUser.email,
-            name: pendingUser.displayName || pendingUser.email?.split('@')[0],
-            emailVerified: true,
-            last_login_at: new Date().toISOString()
-          }, { merge: true });
-        } catch {}
-        
-        handleSuccessfulAuth()
-      } else {
-        setMessage('Email not verified yet. Please check your email and click the verification link.')
-      }
-    } catch (error) {
-      setMessage('Verification failed. Please try again.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleResendOTP = async () => {
-    setLoading(true)
-    try {
-      await resendVerificationEmail()
-      setMessage('Verification email sent! Please check your inbox.')
-    } catch (error) {
-      setMessage('Failed to resend verification email. Please try again.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleBackToAuth = () => {
-    setCurrentStep('auth')
-    setPendingUser(null)
-    setMessage('')
-  }
 
   const handleForgotPassword = async (e) => {
     e.preventDefault()
@@ -444,21 +390,6 @@ const LoginModal = ({ isOpen, onClose }) => {
           </>
         )}
 
-        {currentStep === 'otp' && (
-          <>
-            <div className="text-4xl mb-4">📧</div>
-            <h3 className={`text-xl font-bold mb-2 ${
-              isDark ? 'text-gray-200' : 'text-gray-800'
-            }`}>
-              Email Verification Required
-            </h3>
-            <p className={`mb-6 ${
-              isDark ? 'text-gray-300' : 'text-gray-600'
-            }`}>
-              Please check your email and click the verification link to complete your {isSignup ? 'signup' : 'login'}
-            </p>
-          </>
-        )}
 
         {message && (
           <div className={`mb-4 p-3 rounded-lg text-sm ${
@@ -470,16 +401,6 @@ const LoginModal = ({ isOpen, onClose }) => {
 
         {currentStep === 'auth' && renderAuthStep()}
         {currentStep === 'forgot' && renderForgotStep()}
-        {currentStep === 'otp' && (
-          <OTPVerification
-            email={formData.email}
-            onVerify={handleOTPVerify}
-            onResend={handleResendOTP}
-            onBack={handleBackToAuth}
-            isSignup={isSignup}
-            loading={loading}
-          />
-        )}
 
         {currentStep === 'auth' && (
           <div className="mt-4">

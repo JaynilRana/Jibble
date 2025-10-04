@@ -33,7 +33,7 @@ const TasksSection = ({ tasks, onTasksChange }) => {
       </h3>
       <div>
         {tasks.map(task => (
-          <div key={task.id} className={`flex items-center flex-wrap gap-3 mb-3 p-3 rounded-xl border transition-colors duration-300 ${
+          <div key={task.id} className={`flex items-start flex-wrap gap-3 mb-3 p-3 rounded-xl border transition-colors duration-300 ${
             isDark 
               ? 'bg-gray-700/60 border-gray-600' 
               : 'bg-white/60 border-blue-100'
@@ -49,21 +49,26 @@ const TasksSection = ({ tasks, onTasksChange }) => {
             {/* Multiline, mobile-friendly task input */}
             <textarea 
               rows={1}
-              className={`flex-1 min-w-[220px] px-3 py-2 border-2 rounded-lg transition-all duration-300 focus:outline-none focus:ring-2 resize-none break-words whitespace-pre-wrap ${
+              className={`task-textarea flex-1 min-w-[220px] w-full px-3 py-2 border-2 rounded-lg transition-all duration-300 focus:outline-none focus:ring-2 resize-none break-words whitespace-pre-wrap overflow-wrap-anywhere word-break-break-word ${
                 isDark 
                   ? 'border-gray-600 focus:border-cyan-500 focus:ring-cyan-900 bg-gray-700/80 text-gray-200 placeholder-gray-400' 
                   : 'border-blue-200 focus:border-cyan-400 focus:ring-cyan-100 bg-white/80 text-gray-800 placeholder-gray-500'
               }`}
+              style={{
+                minHeight: '40px',
+                maxHeight: '200px',
+                overflowY: 'auto'
+              }}
               value={task.text}
               onChange={(e) => {
                 updateTask(task.id, 'text', e.target.value)
                 // Auto-grow height to fit content
                 e.target.style.height = 'auto'
-                e.target.style.height = `${e.target.scrollHeight}px`
+                e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`
               }}
               onInput={(e) => {
                 e.target.style.height = 'auto'
-                e.target.style.height = `${e.target.scrollHeight}px`
+                e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`
               }}
               placeholder="New task..."
             />

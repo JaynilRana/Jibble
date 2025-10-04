@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react'
 import { getProfile, logout as apiLogout } from '../api'
 import { auth } from '../services/firebase'
 import { onAuthStateChanged } from 'firebase/auth'
+import { migrateLocalDraftsToCloud } from '../services/draftService'
 
 const AuthContext = createContext()
 
@@ -24,6 +25,13 @@ export const AuthProvider = ({ children }) => {
       if (u) {
         setIsLoggedIn(true)
         setUser({ id: u.uid, email: u.email, name: u.displayName || u.email?.split('@')[0] })
+        
+        // Migrate any existing localStorage drafts to cloud
+        try {
+          await migrateLocalDraftsToCloud(u.uid)
+        } catch (error) {
+          console.warn('Failed to migrate drafts on login:', error)
+        }
       } else {
         setIsLoggedIn(false)
         setUser(null)

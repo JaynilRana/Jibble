@@ -117,7 +117,7 @@ const Navigation = () => {
                     
                     {/* User Dropdown */}
                     {showUserDropdown && (
-                      <div className={`absolute right-0 mt-2 w-48 rounded-lg shadow-lg border-2 z-50 ${
+                      <div className={`absolute right-0 mt-2 min-w-48 max-w-80 w-auto rounded-lg shadow-lg border-2 z-50 ${
                         isDark 
                           ? 'bg-gray-800 border-gray-600' 
                           : 'bg-white border-gray-200'
@@ -131,7 +131,7 @@ const Navigation = () => {
                             }`}>
                               {user?.name || 'User'}
                             </p>
-                            <p className={`text-sm font-source-sans ${
+                            <p className={`text-sm font-source-sans break-all ${
                               isDark ? 'text-gray-400' : 'text-gray-600'
                             }`}>
                               {user?.email}

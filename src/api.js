@@ -20,9 +20,6 @@ import {
   sendPasswordResetEmail,
   signOut,
   updateProfile,
-  sendEmailVerification,
-  applyActionCode,
-  checkActionCode,
   confirmPasswordReset,
   verifyPasswordResetCode
 } from 'firebase/auth';
@@ -52,50 +49,30 @@ const getCurrentUserKey = () => {
 const userLogsCollectionRef = (userKey) => collection(db, 'users', userKey, 'daily_logs');
 const userReportsCollectionRef = (userKey) => collection(db, 'users', userKey, 'weekly_reports');
 
-// Auth - Firebase email/password with email verification
+// Auth - Firebase email/password
 export const emailSignUp = async (name, email, password) => {
   const cred = await createUserWithEmailAndPassword(auth, email, password);
   if (name) await updateProfile(cred.user, { displayName: name });
-  
-  // Send email verification with custom settings
-  await sendEmailVerification(cred.user, {
-    url: `${window.location.origin}/verify-email`,
-    handleCodeInApp: true
-  });
   
   // Store basic profile in Firestore
   try {
     await setDoc(doc(collection(db, 'users'), cred.user.uid), {
       email: cred.user.email,
       name: name || cred.user.displayName || email.split('@')[0],
-      emailVerified: false,
+      emailVerified: true, // Set as verified since we're not using email verification
       created_at: new Date().toISOString()
     }, { merge: true });
   } catch {}
   
+  
   return { 
     user: cred.user,
-    needsVerification: true,
-    message: 'Account created! Please check your email (including spam folder) to verify your account.'
+    message: 'Account created successfully! Welcome to Jibble!'
   };
 };
 
 export const emailSignIn = async (email, password) => {
   const cred = await signInWithEmailAndPassword(auth, email, password);
-  
-  // Check if email is verified
-  if (!cred.user.emailVerified) {
-    // Send verification email if not verified
-    await sendEmailVerification(cred.user, {
-      url: `${window.location.origin}/verify-email`,
-      handleCodeInApp: true
-    });
-    return {
-      user: cred.user,
-      needsVerification: true,
-      message: 'Please verify your email address. A verification email has been sent (check spam folder).'
-    };
-  }
   
   // Ensure user profile doc exists
   try {
@@ -122,26 +99,6 @@ export const logout = async () => {
   return { data: { message: 'Logged out successfully' } };
 };
 
-// Auth - Email verification
-export const verifyEmail = async (actionCode) => {
-  try {
-    await applyActionCode(auth, actionCode);
-    return { success: true, message: 'Email verified successfully!' };
-  } catch (error) {
-    throw new Error('Invalid or expired verification code');
-  }
-};
-
-export const resendVerificationEmail = async () => {
-  const user = auth.currentUser;
-  if (!user) throw new Error('No user logged in');
-  
-  await sendEmailVerification(user, {
-    url: `${window.location.origin}/verify-email`,
-    handleCodeInApp: true
-  });
-  return { message: 'Verification email sent! Please check your inbox and spam folder.' };
-};
 
 // Auth - Password reset
 export const forgotPassword = async (email) => {
