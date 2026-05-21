@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react'
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { useTheme } from '../contexts/ThemeContext'
 import { useAuth } from '../contexts/AuthContext'
 import { getWeeklyReport } from '../api'
 import { getCurrentWeekStart, getWeekEndDate, addDaysToDateKey, formatDateKey } from '../utils/dateUtils'
-
 const WeeklyReportPage = () => {
   const { isDark } = useTheme()
   const { user } = useAuth()
   const [report, setReport] = useState(null)
+  const [comparisonReports, setComparisonReports] = useState([])
   const [loading, setLoading] = useState(false)
   const [selectedWeek, setSelectedWeek] = useState('')
 
@@ -30,9 +31,27 @@ const WeeklyReportPage = () => {
       } else {
         setReport(null)
       }
+
+      // Load comparison reports
+      const prev1Start = addDaysToDateKey(weekStart, -7)
+      const prev2Start = addDaysToDateKey(weekStart, -14)
+      
+      const [res1, res2] = await Promise.all([
+        getWeeklyReport(prev1Start),
+        getWeeklyReport(prev2Start)
+      ])
+      
+      const compReports = []
+      if (res2.data) compReports.push({...res2.data, label: '2 Weeks Ago'})
+      if (res1.data) compReports.push({...res1.data, label: 'Last Week'})
+      if (response.data) compReports.push({...response.data, label: 'This Week'})
+      
+      setComparisonReports(compReports)
+
     } catch (error) {
       console.error('Error loading weekly report:', error)
       setReport(null)
+      setComparisonReports([])
     } finally {
       setLoading(false)
     }
@@ -444,6 +463,137 @@ const WeeklyReportPage = () => {
             </div>
           </div>
 
+          {/* Visualizations */}
+          {report.daily_data && report.daily_data.length > 0 && (
+            <div className={`p-6 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-lg border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+              <h3 className="text-xl font-semibold mb-6 flex items-center gap-2">
+                <span className="text-2xl">📈</span>
+                Daily Progress Trends
+              </h3>
+              
+              <div className="space-y-12">
+                {/* Mood & Energy Trend */}
+                <div>
+                  <h4 className="font-medium mb-4 text-center">Mood & Energy</h4>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={report.daily_data}>
+                        <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#e5e7eb'} />
+                        <XAxis dataKey="date" tickFormatter={(date) => new Date(date).toLocaleDateString('en-US', {weekday: 'short'})} stroke={isDark ? '#9ca3af' : '#4b5563'} />
+                        <YAxis domain={[0, 10]} stroke={isDark ? '#9ca3af' : '#4b5563'} />
+                        <Tooltip contentStyle={{ backgroundColor: isDark ? '#1f2937' : '#ffffff', borderColor: isDark ? '#374151' : '#e5e7eb', color: isDark ? '#ffffff' : '#000000' }} />
+                        <Legend />
+                        <Line type="monotone" dataKey="mood" stroke="#eab308" strokeWidth={2} name="Mood" />
+                        <Line type="monotone" dataKey="energy" stroke="#a855f7" strokeWidth={2} name="Energy" />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Diet Trend */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  <div>
+                    <h4 className="font-medium mb-4 text-center">Calorie Intake</h4>
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={report.daily_data}>
+                          <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#e5e7eb'} />
+                          <XAxis dataKey="date" tickFormatter={(date) => new Date(date).toLocaleDateString('en-US', {weekday: 'short'})} stroke={isDark ? '#9ca3af' : '#4b5563'} />
+                          <YAxis stroke={isDark ? '#9ca3af' : '#4b5563'} />
+                          <Tooltip contentStyle={{ backgroundColor: isDark ? '#1f2937' : '#ffffff', borderColor: isDark ? '#374151' : '#e5e7eb', color: isDark ? '#ffffff' : '#000000' }} />
+                          <Legend />
+                          <Bar dataKey="calories" fill="#f97316" name="Calories (kcal)" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="font-medium mb-4 text-center">Protein & Water</h4>
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={report.daily_data}>
+                          <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#e5e7eb'} />
+                          <XAxis dataKey="date" tickFormatter={(date) => new Date(date).toLocaleDateString('en-US', {weekday: 'short'})} stroke={isDark ? '#9ca3af' : '#4b5563'} />
+                          <YAxis yAxisId="left" stroke={isDark ? '#9ca3af' : '#4b5563'} />
+                          <YAxis yAxisId="right" orientation="right" stroke={isDark ? '#9ca3af' : '#4b5563'} />
+                          <Tooltip contentStyle={{ backgroundColor: isDark ? '#1f2937' : '#ffffff', borderColor: isDark ? '#374151' : '#e5e7eb', color: isDark ? '#ffffff' : '#000000' }} />
+                          <Legend />
+                          <Bar yAxisId="left" dataKey="protein" fill="#ef4444" name="Protein (g)" radius={[4, 4, 0, 0]} />
+                          <Bar yAxisId="right" dataKey="water" fill="#3b82f6" name="Water (L)" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Steps Trend */}
+                <div>
+                  <h4 className="font-medium mb-4 text-center">Daily Steps</h4>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={report.daily_data}>
+                        <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#e5e7eb'} />
+                        <XAxis dataKey="date" tickFormatter={(date) => new Date(date).toLocaleDateString('en-US', {weekday: 'short'})} stroke={isDark ? '#9ca3af' : '#4b5563'} />
+                        <YAxis stroke={isDark ? '#9ca3af' : '#4b5563'} />
+                        <Tooltip contentStyle={{ backgroundColor: isDark ? '#1f2937' : '#ffffff', borderColor: isDark ? '#374151' : '#e5e7eb', color: isDark ? '#ffffff' : '#000000' }} />
+                        <Legend />
+                        <Bar dataKey="steps" fill="#22c55e" name="Steps" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Weekly Comparison */}
+          {comparisonReports.length > 1 && (
+            <div className={`p-6 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-lg border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
+              <h3 className="text-xl font-semibold mb-6 flex items-center gap-2">
+                <span className="text-2xl">⚖️</span>
+                Weekly Comparison
+              </h3>
+              
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div>
+                  <h4 className="font-medium mb-4 text-center">Average Ratings</h4>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={comparisonReports}>
+                        <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#e5e7eb'} />
+                        <XAxis dataKey="label" stroke={isDark ? '#9ca3af' : '#4b5563'} />
+                        <YAxis domain={[0, 10]} stroke={isDark ? '#9ca3af' : '#4b5563'} />
+                        <Tooltip contentStyle={{ backgroundColor: isDark ? '#1f2937' : '#ffffff', borderColor: isDark ? '#374151' : '#e5e7eb', color: isDark ? '#ffffff' : '#000000' }} />
+                        <Legend />
+                        <Bar dataKey="average_mood" fill="#eab308" name="Mood" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="average_energy" fill="#a855f7" name="Energy" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="average_productivity" fill="#f97316" name="Productivity" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium mb-4 text-center">Activity & Completion</h4>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={comparisonReports}>
+                        <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#e5e7eb'} />
+                        <XAxis dataKey="label" stroke={isDark ? '#9ca3af' : '#4b5563'} />
+                        <YAxis yAxisId="left" stroke={isDark ? '#9ca3af' : '#4b5563'} />
+                        <YAxis yAxisId="right" orientation="right" domain={[0, 100]} stroke={isDark ? '#9ca3af' : '#4b5563'} />
+                        <Tooltip contentStyle={{ backgroundColor: isDark ? '#1f2937' : '#ffffff', borderColor: isDark ? '#374151' : '#e5e7eb', color: isDark ? '#ffffff' : '#000000' }} />
+                        <Legend />
+                        <Bar yAxisId="left" dataKey="average_steps" fill="#22c55e" name="Steps (Avg)" radius={[4, 4, 0, 0]} />
+                        <Bar yAxisId="right" dataKey="completion_rate" fill="#3b82f6" name="Task Completion (%)" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Top Quotes */}
           {report.top_quotes && report.top_quotes.length > 0 && (
             <div className={`p-6 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-lg border ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
@@ -480,6 +630,26 @@ const WeeklyReportPage = () => {
                           isDark ? 'text-gray-200' : 'text-gray-800'
                         }`}>
                           {suggestion}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* AI Correlations */}
+              {report.personal_insights.correlations && report.personal_insights.correlations.length > 0 && (
+                <div className={`p-6 rounded-lg ${isDark ? 'bg-purple-900/50 border-purple-700' : 'bg-purple-50 border-purple-200'} shadow-lg border`}>
+                  <h3 className={`text-xl font-semibold mb-4 flex items-center gap-2 ${isDark ? 'text-purple-300' : 'text-purple-800'}`}>
+                    <span className="text-2xl">🔗</span>
+                    AI-Discovered Correlations
+                  </h3>
+                  <div className="space-y-3">
+                    {report.personal_insights.correlations.map((correlation, index) => (
+                      <div key={index} className="flex items-start gap-3">
+                        <span className={`text-xl ${isDark ? 'text-purple-400' : 'text-purple-600'}`}>✨</span>
+                        <p className={`leading-relaxed italic ${isDark ? 'text-purple-200' : 'text-purple-900'}`}>
+                          {correlation}
                         </p>
                       </div>
                     ))}

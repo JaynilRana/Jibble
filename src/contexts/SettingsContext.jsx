@@ -7,6 +7,7 @@ const STORAGE_KEY = 'app_settings_v1'
 const defaultSettings = {
   quoteMode: 'ai', // 'ai' | 'curated'
   showNutritionDetails: true,
+  customMetrics: [] // Array of { id: string, name: string }
 }
 
 export const SettingsProvider = ({ children }) => {
@@ -32,6 +33,8 @@ export const SettingsProvider = ({ children }) => {
     setSettings,
     setQuoteMode: (mode) => setSettings(prev => ({ ...prev, quoteMode: mode })),
     toggleNutritionDetails: () => setSettings(prev => ({ ...prev, showNutritionDetails: !prev.showNutritionDetails })),
+    addCustomMetric: (metric) => setSettings(prev => ({ ...prev, customMetrics: [...(prev.customMetrics || []), metric] })),
+    removeCustomMetric: (id) => setSettings(prev => ({ ...prev, customMetrics: (prev.customMetrics || []).filter(m => m.id !== id) })),
   }), [settings])
 
   return (

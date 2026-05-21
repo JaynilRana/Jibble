@@ -2,6 +2,7 @@ import axios from 'axios';
 import localDataService from './services/localDataService';
 import { db, auth } from './services/firebase';
 import { calculateCurrentStreak } from './utils/streakUtils';
+import { generateWeeklyInsightsWithGemini } from './services/geminiService';
 import {
   collection,
   doc,
@@ -154,6 +155,24 @@ export const getLogByDate = async (date) => {
   return { data: snap.exists() ? { id: snap.id, ...snap.data() } : null };
 };
 
+// Gamification
+export const getGamificationStats = async () => {
+  const userKey = getCurrentUserKey();
+  const docRef = doc(collection(db, 'users'), userKey);
+  const snap = await getDoc(docRef);
+  if (snap.exists() && snap.data().gamification) {
+    return { data: snap.data().gamification };
+  }
+  return { data: { xp: 0, level: 1, badges: [] } };
+};
+
+export const updateGamificationStats = async (updates) => {
+  const userKey = getCurrentUserKey();
+  const docRef = doc(collection(db, 'users'), userKey);
+  await setDoc(docRef, { gamification: updates }, { merge: true });
+  return { data: updates };
+};
+
 // Weekly Reports
 export const getWeeklyReport = async (weekStartDate, forceRegenerate = false) => {
   const userKey = getCurrentUserKey();
@@ -177,7 +196,7 @@ export const getWeeklyReport = async (weekStartDate, forceRegenerate = false) =>
   const moodScores = weekLogs.map((l) => toNumber(l.mood_score)).filter((n) => !Number.isNaN(n));
   const energyLevels = weekLogs.map((l) => toNumber(l.energy_level)).filter((n) => !Number.isNaN(n));
   let discipline = [], sociability = [], productivity = [];
-  let protein = [], calories = [], water = [];
+  let protein = [], fats = [], carbohydrates = [], sugars = [], calories = [], water = [];
   let steps = [];
   let totalTasks = 0, completedTasks = 0;
   weekLogs.forEach((l) => {
@@ -191,8 +210,12 @@ export const getWeeklyReport = async (weekStartDate, forceRegenerate = false) =>
     
     // Process diet data
     const diet = l.diet || {};
-    if (diet.protein != null) protein.push(toNumber(diet.protein));
-    if (diet.calories != null) calories.push(toNumber(diet.calories));
+    const nutrients = diet.nutrients || diet; // Support new and old format
+    if (nutrients.protein != null) protein.push(toNumber(nutrients.protein));
+    if (nutrients.fats != null) fats.push(toNumber(nutrients.fats));
+    if (nutrients.carbohydrates != null) carbohydrates.push(toNumber(nutrients.carbohydrates));
+    if (nutrients.sugars != null) sugars.push(toNumber(nutrients.sugars));
+    if (nutrients.calories != null) calories.push(toNumber(nutrients.calories));
     if (diet.water != null) water.push(toNumber(diet.water));
     
     // Process steps data
@@ -353,12 +376,46 @@ export const getWeeklyReport = async (weekStartDate, forceRegenerate = false) =>
     average_sociability: average(sociability),
     average_productivity: average(productivity),
     average_protein: average(protein),
+    average_fats: average(fats),
+    average_carbohydrates: average(carbohydrates),
+    average_sugars: average(sugars),
     average_calories: average(calories),
     average_water: average(water),
     average_steps: average(steps)
   };
 
-  const personalInsights = generatePersonalInsights(weekLogs, metrics);
+  const daily_data = weekLogs.map(l => {
+    const diet = l.diet || {};
+    const nutrients = diet.nutrients || diet;
+    const r = l.ratings || {};
+    return {
+      date: l.date,
+      mood: toNumber(l.mood_score),
+      energy: toNumber(l.energy_level),
+      discipline: toNumber(r.discipline),
+      sociability: toNumber(r.sociability),
+      productivity: toNumber(r.productivity),
+      protein: toNumber(nutrients.protein),
+      calories: toNumber(nutrients.calories),
+      water: toNumber(diet.water),
+      steps: toNumber(l.steps),
+      tasksCompleted: Array.isArray(l.tasks) ? l.tasks.filter(t => t?.completed).length : 0,
+      totalTasks: Array.isArray(l.tasks) ? l.tasks.length : 0,
+      custom_metrics: l.custom_metrics || {}
+    };
+  }).sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  let personalInsights = generatePersonalInsights(weekLogs, metrics);
+  
+  try {
+    const tasksSummary = weekLogs.flatMap(log => log.tasks || []).map(t => t.text).join(', ');
+    const aiInsights = await generateWeeklyInsightsWithGemini(metrics, tasksSummary, daily_data);
+    if (aiInsights && aiInsights.suggestions && aiInsights.suggestions.length > 0) {
+      personalInsights = aiInsights;
+    }
+  } catch (error) {
+    console.log("Failed to get AI insights, falling back to rule-based insights", error);
+  }
 
   const report = {
     week_start_date: weekStartDate,
@@ -370,6 +427,9 @@ export const getWeeklyReport = async (weekStartDate, forceRegenerate = false) =>
     average_sociability: metrics.average_sociability,
     average_productivity: metrics.average_productivity,
     average_protein: metrics.average_protein,
+    average_fats: metrics.average_fats,
+    average_carbohydrates: metrics.average_carbohydrates,
+    average_sugars: metrics.average_sugars,
     average_calories: metrics.average_calories,
     average_water: metrics.average_water,
     average_steps: metrics.average_steps,
@@ -378,6 +438,7 @@ export const getWeeklyReport = async (weekStartDate, forceRegenerate = false) =>
     completion_rate: metrics.completion_rate,
     top_quotes: weekLogs.map((l) => l.quote).filter(Boolean).slice(0, 3),
     personal_insights: personalInsights,
+    daily_data: daily_data,
     created_at: new Date().toISOString()
   };
   await setDoc(docRef, report, { merge: true });

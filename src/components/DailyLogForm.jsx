@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useTheme } from '../contexts/ThemeContext'
 import { useAuth } from '../contexts/AuthContext'
 import { useQuote } from '../contexts/QuoteContext'
+import { useGamification } from '../contexts/GamificationContext'
 import { createLog, getLogByDate } from '../api'
 import QuoteSection from './QuoteSection'
 import TasksSection from './TasksSection'
@@ -18,6 +19,7 @@ const DailyLogForm = ({ currentDate }) => {
   const { user } = useAuth()
   const { quote: dailyQuote } = useQuote()
   const { settings, toggleNutritionDetails } = useSettings()
+  const { processNewLog } = useGamification()
   const [formData, setFormData] = useState({
     quote: '',
     tasks: [],
@@ -30,11 +32,12 @@ const DailyLogForm = ({ currentDate }) => {
     mood_score: 5,
     energy_level: 5,
     diet: {
-      protein: 0,
-      calories: 0,
+      mealsText: { breakfast: '', lunch: '', snack: '', dinner: '' },
+      nutrients: { protein: 0, fats: 0, carbohydrates: 0, sugars: 0, calories: 0 },
       water: 0
     },
-    steps: 0
+    steps: 0,
+    custom_metrics: {}
   })
   const [isSaving, setIsSaving] = useState(false)
   const [isLoading, setIsLoading] = useState(true) // New state for loading
@@ -59,7 +62,8 @@ const DailyLogForm = ({ currentDate }) => {
             tasks: draft.tasks || prev.tasks,
             ratings: draft.ratings || prev.ratings,
             diet: draft.diet || prev.diet,
-            steps: draft.steps || prev.steps
+            steps: draft.steps || prev.steps,
+            custom_metrics: draft.custom_metrics || prev.custom_metrics || {}
           }))
           console.log('📝 Loaded draft for:', dateKey)
           return
@@ -76,7 +80,8 @@ const DailyLogForm = ({ currentDate }) => {
             mood_score: response.data.mood_score || prev.mood_score,
             energy_level: response.data.energy_level || prev.energy_level,
             diet: response.data.diet || prev.diet,
-            steps: response.data.steps || prev.steps
+            steps: response.data.steps || prev.steps,
+            custom_metrics: response.data.custom_metrics || prev.custom_metrics || {}
           }))
           console.log('✅ Loaded existing log for:', dateKey)
         } else {
@@ -94,11 +99,12 @@ const DailyLogForm = ({ currentDate }) => {
             mood_score: 5,
             energy_level: 5,
             diet: {
-              protein: 0,
-              calories: 0,
+              mealsText: { breakfast: '', lunch: '', snack: '', dinner: '' },
+              nutrients: { protein: 0, fats: 0, carbohydrates: 0, sugars: 0, calories: 0 },
               water: 0
             },
-            steps: 0
+            steps: 0,
+            custom_metrics: {}
           })
         }
       } catch (error) {
@@ -116,11 +122,12 @@ const DailyLogForm = ({ currentDate }) => {
           mood_score: 5,
           energy_level: 5,
           diet: {
-            protein: 0,
-            calories: 0,
+            mealsText: { breakfast: '', lunch: '', snack: '', dinner: '' },
+            nutrients: { protein: 0, fats: 0, carbohydrates: 0, sugars: 0, calories: 0 },
             water: 0
           },
-          steps: 0
+          steps: 0,
+          custom_metrics: {}
         })
       } finally {
         setIsLoading(false)
@@ -195,7 +202,8 @@ const DailyLogForm = ({ currentDate }) => {
       mood_score: formData.mood_score,
       energy_level: formData.energy_level,
       diet: formData.diet,
-      steps: formData.steps
+      steps: formData.steps,
+      custom_metrics: formData.custom_metrics
     }
 
     setIsSaving(true)
@@ -203,6 +211,10 @@ const DailyLogForm = ({ currentDate }) => {
     try {
       await createLog(payload)
       setSaveStatus('success')
+      
+      // Process Gamification
+      await processNewLog(payload)
+
       setTimeout(() => setSaveStatus('idle'), 2500)
       if (user) {
         await draftService.clearDraft(user.id, dateKey)
@@ -355,6 +367,42 @@ const DailyLogForm = ({ currentDate }) => {
           </div>
         </div>
       </div>
+
+      {/* Custom Metrics Section */}
+      {settings.customMetrics && settings.customMetrics.length > 0 && (
+        <div className={`mb-6 p-6 rounded-xl transition-colors duration-300 ${
+          isDark ? 'bg-gray-700' : 'bg-purple-50'
+        }`}>
+          <h3 className={`text-xl font-semibold mb-4 flex items-center gap-2 ${
+            isDark ? 'text-purple-200' : 'text-purple-800'
+          }`}>
+            <span className="text-2xl">📊</span>
+            Custom Metrics
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {settings.customMetrics.map(metric => (
+              <div key={metric.id}>
+                <label className={`block text-sm font-medium mb-2 ${
+                  isDark ? 'text-gray-300' : 'text-gray-700'
+                }`}>
+                  {metric.name}
+                </label>
+                <input
+                  type="number"
+                  value={formData.custom_metrics?.[metric.id] ?? ''}
+                  onChange={(e) => {
+                    const val = e.target.value === '' ? '' : parseFloat(e.target.value);
+                    const nextMetrics = { ...(formData.custom_metrics || {}), [metric.id]: val };
+                    setFormData(prev => ({ ...prev, custom_metrics: nextMetrics }));
+                    persistDraft({ custom_metrics: nextMetrics });
+                  }}
+                  className={`w-full px-4 py-2 rounded-lg border outline-none focus:ring-2 focus:ring-purple-500 ${isDark ? 'bg-gray-600 border-gray-500 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       
       {/* Save Button */}
       <div className="flex justify-center">

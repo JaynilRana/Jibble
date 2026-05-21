@@ -4,6 +4,7 @@ import { useTheme } from '../contexts/ThemeContext'
 import { useAuth } from '../contexts/AuthContext'
 import { getDashboardStats, getRecentLogs } from '../api'
 import Footer from './Footer'
+import GamificationWidget from './GamificationWidget'
 
 const Dashboard = () => {
   const { isDark } = useTheme()
@@ -23,6 +24,7 @@ const Dashboard = () => {
     { name: 'View Calendar', icon: '📅', path: '/calendar' },
     { name: 'See Statistics', icon: '📊', path: '/stats' },
     { name: 'Weekly Reports', icon: '📋', path: '/weekly-reports' },
+    { name: 'Jibble Wrapped', icon: '🎁', path: '/wrapped' },
     { name: 'Export Data', icon: '📤', path: '/export' }
   ]
 
@@ -111,6 +113,11 @@ const Dashboard = () => {
           }`}>
             Ready to capture today's thoughts and experiences?
           </p>
+        </div>
+
+        {/* Gamification Section */}
+        <div data-reveal="up" className="mb-8">
+          <GamificationWidget />
         </div>
 
         {/* Stats Grid */}

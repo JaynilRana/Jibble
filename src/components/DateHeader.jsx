@@ -27,7 +27,7 @@ const DateHeader = ({ currentDate, onDateChange, onGoToToday }) => {
         <div className={`text-sm font-medium ${
           isDark ? 'text-blue-200' : 'text-blue-100'
         }`}>
-          🌊 Ocean Breeze Daily Log
+
         </div>
       </div>
       

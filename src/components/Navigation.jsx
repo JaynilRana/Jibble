@@ -18,7 +18,9 @@ const Navigation = () => {
     { name: 'New Log', icon: '✏️', path: '/daily-log' },
     { name: 'Calendar', icon: '📅', path: '/calendar' },
     { name: 'Stats', icon: '📈', path: '/stats' },
-    { name: 'Weekly Reports', icon: '📋', path: '/weekly-reports' }
+    { name: 'Weekly Reports', icon: '📋', path: '/weekly-reports' },
+    { name: 'Jibble Wrapped', icon: '🎁', path: '/wrapped' },
+    { name: 'Settings', icon: '⚙️', path: '/settings' }
   ]
 
   const handleNavClick = (path) => {

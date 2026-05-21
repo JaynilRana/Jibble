@@ -4,6 +4,7 @@ import { ThemeProvider, useTheme } from './contexts/ThemeContext'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { QuoteProvider } from './contexts/QuoteContext'
 import { SettingsProvider } from './contexts/SettingsContext'
+import { GamificationProvider } from './contexts/GamificationContext'
 import Navigation from './components/Navigation'
 import Home from './components/Home'
 import About from './components/About'
@@ -13,10 +14,15 @@ import Calendar from './components/Calendar'
 import Stats from './components/Stats'
 import Export from './components/Export'
 import WeeklyReportPage from './components/WeeklyReportPage'
+import SettingsPage from './components/SettingsPage'
 import FingerprintModal from './components/FingerprintModal'
 import LoadingSpinner from './components/LoadingSpinner'
 import initScrollytelling from './utils/scrollytelling'
 import ScrollProgress from './components/ScrollProgress'
+import JibbleCompanion from './components/JibbleCompanion'
+import AchievementModal from './components/AchievementModal'
+import JibbleWrapped from './components/JibbleWrapped'
+import SharedWrapped from './components/SharedWrapped'
 
 function AppContent() {
   const [showFingerprintModal, setShowFingerprintModal] = useState(false)
@@ -68,6 +74,7 @@ function AppContent() {
         {/* Public routes */}
         <Route path="/" element={<Home />} />
         <Route path="/about" element={<About />} />
+        <Route path="/shared" element={<SharedWrapped />} />
         
         {/* Protected routes - redirect to home if not logged in */}
         <Route 
@@ -94,6 +101,14 @@ function AppContent() {
           path="/weekly-reports" 
           element={isLoggedIn ? <WeeklyReportPage /> : <Navigate to="/" replace />} 
         />
+        <Route 
+          path="/settings" 
+          element={isLoggedIn ? <SettingsPage /> : <Navigate to="/" replace />} 
+        />
+        <Route 
+          path="/wrapped" 
+          element={isLoggedIn ? <JibbleWrapped /> : <Navigate to="/" replace />} 
+        />
         
         {/* Catch all route - redirect to home */}
         <Route path="*" element={<Navigate to="/" replace />} />
@@ -104,6 +119,11 @@ function AppContent() {
         onClose={() => setShowFingerprintModal(false)}
         onAuthenticate={simulateFingerprint}
       />
+      
+      <AchievementModal />
+      
+      {/* Floating AI Companion */}
+      <JibbleCompanion />
     </div>
   )
 }
@@ -114,7 +134,9 @@ function App() {
       <AuthProvider>
         <SettingsProvider>
           <QuoteProvider>
-            <AppContent />
+            <GamificationProvider>
+              <AppContent />
+            </GamificationProvider>
           </QuoteProvider>
         </SettingsProvider>
       </AuthProvider>
