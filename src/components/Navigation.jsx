@@ -63,12 +63,12 @@ const Navigation = () => {
               </div>
               
               {/* Navigation Items */}
-              <div className="hidden md:flex items-center gap-1 ml-8">
+              <div className="hidden lg:flex items-center gap-1 ml-4 lg:ml-8">
                 {navItems.map((item) => (
                   <button
                     key={item.name}
                     onClick={() => handleNavClick(item.path)}
-                    className={`px-4 py-2 rounded-lg font-source-sans font-medium transition-all duration-300 flex items-center gap-2 ${
+                    className={`px-2 xl:px-4 py-2 rounded-lg font-source-sans font-medium transition-all duration-300 flex items-center gap-1 xl:gap-2 whitespace-nowrap ${
                       isActivePage(item.path)
                         ? 'bg-white/20 text-white border border-white/30'
                         : 'text-white/80 hover:text-white hover:bg-white/10'
@@ -108,7 +108,7 @@ const Navigation = () => {
                   <div className="relative">
                     <button 
                       onClick={() => setShowUserDropdown(!showUserDropdown)}
-                      className="bg-white/20 text-white p-2 rounded-lg transition-all duration-300 hover:bg-white/30 hover:scale-105 border border-white/30 flex items-center gap-2"
+                      className="bg-white/20 text-white px-3 py-2 rounded-lg transition-all duration-300 hover:bg-white/30 hover:scale-105 border border-white/30 flex items-center gap-2 whitespace-nowrap"
                       title="User Menu"
                     >
                       👤
